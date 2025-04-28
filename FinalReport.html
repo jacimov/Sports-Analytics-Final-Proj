@@ -1,0 +1,2490 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.5.57">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+<meta name="author" content="By Alex Williams, Alex Wei, James Lauer, and Nicco Jacimovic">
+
+<title>Expected Passer Rating in the NFL: Contextualizing QB Performance Using Tracking Data</title>
+<style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+</style>
+
+
+<script src="FinalReport_files/libs/clipboard/clipboard.min.js"></script>
+<script src="FinalReport_files/libs/quarto-html/quarto.js"></script>
+<script src="FinalReport_files/libs/quarto-html/popper.min.js"></script>
+<script src="FinalReport_files/libs/quarto-html/tippy.umd.min.js"></script>
+<script src="FinalReport_files/libs/quarto-html/anchor.min.js"></script>
+<link href="FinalReport_files/libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="FinalReport_files/libs/quarto-html/quarto-syntax-highlighting.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="FinalReport_files/libs/bootstrap/bootstrap.min.js"></script>
+<link href="FinalReport_files/libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="FinalReport_files/libs/bootstrap/bootstrap.min.css" rel="stylesheet" id="quarto-bootstrap" data-mode="light">
+<script src="FinalReport_files/libs/kePrint-0.0.1/kePrint.js"></script>
+<link href="FinalReport_files/libs/lightable-0.0.1/lightable.css" rel="stylesheet">
+
+  <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script>
+
+<script type="text/javascript">
+const typesetMath = (el) => {
+  if (window.MathJax) {
+    // MathJax Typeset
+    window.MathJax.typeset([el]);
+  } else if (window.katex) {
+    // KaTeX Render
+    var mathElements = el.getElementsByClassName("math");
+    var macros = [];
+    for (var i = 0; i < mathElements.length; i++) {
+      var texText = mathElements[i].firstChild;
+      if (mathElements[i].tagName == "SPAN") {
+        window.katex.render(texText.data, mathElements[i], {
+          displayMode: mathElements[i].classList.contains('display'),
+          throwOnError: false,
+          macros: macros,
+          fleqn: false
+        });
+      }
+    }
+  }
+}
+window.Quarto = {
+  typesetMath
+};
+</script>
+
+</head>
+
+<body>
+
+<div id="quarto-content" class="page-columns page-rows-contents page-layout-article">
+<div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+  <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">Table of contents</h2>
+   
+  <ul>
+  <li><a href="#introduction" id="toc-introduction" class="nav-link active" data-scroll-target="#introduction">Introduction</a></li>
+  <li><a href="#what-is-passer-rating" id="toc-what-is-passer-rating" class="nav-link" data-scroll-target="#what-is-passer-rating">What is Passer Rating?</a></li>
+  <li><a href="#motivation-why-we-need-a-better-metric" id="toc-motivation-why-we-need-a-better-metric" class="nav-link" data-scroll-target="#motivation-why-we-need-a-better-metric">Motivation: Why We Need a Better Metric</a>
+  <ul class="collapse">
+  <li><a href="#not-all-10-yard-completions-are-created-equal" id="toc-not-all-10-yard-completions-are-created-equal" class="nav-link" data-scroll-target="#not-all-10-yard-completions-are-created-equal">Not All 10-Yard Completions Are Created Equal</a></li>
+  </ul></li>
+  <li><a href="#using-tracking-data-to-solve-this-problem" id="toc-using-tracking-data-to-solve-this-problem" class="nav-link" data-scroll-target="#using-tracking-data-to-solve-this-problem">Using Tracking Data to Solve This Problem</a>
+  <ul class="collapse">
+  <li><a href="#data-sources" id="toc-data-sources" class="nav-link" data-scroll-target="#data-sources">Data Sources</a></li>
+  <li><a href="#feature-categories" id="toc-feature-categories" class="nav-link" data-scroll-target="#feature-categories">Feature Categories</a></li>
+  </ul></li>
+  <li><a href="#modeling-approach" id="toc-modeling-approach" class="nav-link" data-scroll-target="#modeling-approach">Modeling Approach</a>
+  <ul class="collapse">
+  <li><a href="#model-selection-process" id="toc-model-selection-process" class="nav-link" data-scroll-target="#model-selection-process">Model Selection Process</a></li>
+  </ul></li>
+  <li><a href="#case-study-a-tale-of-two-throws" id="toc-case-study-a-tale-of-two-throws" class="nav-link" data-scroll-target="#case-study-a-tale-of-two-throws">Case Study: A Tale of Two Throws</a>
+  <ul class="collapse">
+  <li><a href="#staffords-clean-pocket-throw" id="toc-staffords-clean-pocket-throw" class="nav-link" data-scroll-target="#staffords-clean-pocket-throw">Stafford’s Clean Pocket Throw</a></li>
+  <li><a href="#mariotas-pressured-throw" id="toc-mariotas-pressured-throw" class="nav-link" data-scroll-target="#mariotas-pressured-throw">Mariota’s Pressured Throw</a></li>
+  </ul></li>
+  <li><a href="#quarterback-rankings-by-expected-passer-rating" id="toc-quarterback-rankings-by-expected-passer-rating" class="nav-link" data-scroll-target="#quarterback-rankings-by-expected-passer-rating">Quarterback Rankings by Expected Passer Rating</a>
+  <ul class="collapse">
+  <li><a href="#distribution-of-expected-passer-rating-by-qb" id="toc-distribution-of-expected-passer-rating-by-qb" class="nav-link" data-scroll-target="#distribution-of-expected-passer-rating-by-qb">Distribution of Expected Passer Rating by QB</a></li>
+  </ul></li>
+  <li><a href="#key-findings" id="toc-key-findings" class="nav-link" data-scroll-target="#key-findings">Key Findings</a></li>
+  <li><a href="#model-feature-importance" id="toc-model-feature-importance" class="nav-link" data-scroll-target="#model-feature-importance">Model Feature Importance</a></li>
+  <li><a href="#limitations-and-future-work" id="toc-limitations-and-future-work" class="nav-link" data-scroll-target="#limitations-and-future-work">Limitations and Future Work</a>
+  <ul class="collapse">
+  <li><a href="#current-limitations" id="toc-current-limitations" class="nav-link" data-scroll-target="#current-limitations">Current Limitations</a></li>
+  </ul></li>
+  <li><a href="#conclusion" id="toc-conclusion" class="nav-link" data-scroll-target="#conclusion">Conclusion</a></li>
+  <li><a href="#references" id="toc-references" class="nav-link" data-scroll-target="#references">References</a></li>
+  <li><a href="#appendix" id="toc-appendix" class="nav-link" data-scroll-target="#appendix">Appendix</a>
+  <ul class="collapse">
+  <li><a href="#features" id="toc-features" class="nav-link" data-scroll-target="#features">Features</a></li>
+  </ul></li>
+  </ul>
+</nav>
+</div>
+<main class="content" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default">
+<div class="quarto-title">
+<h1 class="title">Expected Passer Rating in the NFL: Contextualizing QB Performance Using Tracking Data</h1>
+</div>
+
+
+
+<div class="quarto-title-meta">
+
+    <div>
+    <div class="quarto-title-meta-heading">Author</div>
+    <div class="quarto-title-meta-contents">
+             <p>By Alex Williams, Alex Wei, James Lauer, and Nicco Jacimovic </p>
+          </div>
+  </div>
+    
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<section id="introduction" class="level1">
+<h1>Introduction</h1>
+<p>Football analytics has come a long way since the days of simply counting yards and touchdowns. With the advent of tracking data, we now have the ability to analyze the game at a granular level never before possible. This project focuses on one of the most watched and analyzed positions in sports: the NFL quarterback.</p>
+<p>In this notebook, we explore a new metric: <strong>Expected Passer Rating (EPR)</strong> - a measurement that contextualizes quarterback performance by using tracking data to determine how difficult each throw actually was, rather than just looking at the outcome.</p>
+</section>
+<section id="what-is-passer-rating" class="level1">
+<h1>What is Passer Rating?</h1>
+<p>Passer rating has been the standard quarterback efficiency metric in the NFL since it was developed in 1970 by Seymour Siwoff. This formula uses four primary statistics to quantify a quarterback’s performance:</p>
+<p>Completion Percentage, Yards per Attempt, Touchdown Percentage, and Interception Percentage. All of these components are bounded between 0 and 2.375.</p>
+<p>The formula can be expressed as:</p>
+<p><span class="math display">\[
+\text{Passer Rating} = \frac{\left(\left(\frac{COMP}{ATT} - 0.3\right) \times 5 + \left(\frac{YARDS}{ATT} - 3\right) \times 0.25 + \left(\frac{TD}{ATT}\right) \times 20 + 2.375 - \left(\frac{INT}{ATT} \times 25\right)\right)}{6} \times 100
+\]</span></p>
+<p>While passer rating has been a useful metric for decades, it has inherent limitations that our Expected Passer Rating model aims to address.</p>
+</section>
+<section id="motivation-why-we-need-a-better-metric" class="level1">
+<h1>Motivation: Why We Need a Better Metric</h1>
+<p>Traditional passer rating has served football analysis for over 50 years, but it contains several fundamental flaws. It counts the entire outcome of a play, including what happens after the pass is thrown such as yards after catch. It’s also unstable and noisy from game-to-game and season-to-season, making it difficult to rely on for consistent evaluation. Furthermore, it doesn’t account for the difficulty of throws, treating all completions, touchdowns, and interceptions as equal regardless of context. A 5-yard dump-off to a running back who breaks three tackles for a touchdown counts the same as a perfectly placed 40-yard strike into tight coverage in the end zone.</p>
+<p>By using conditional expectation, we can provide a better measure of quarterback performance that accounts for the difficulty of each throw situation. Tracking data allows us to quantify quarterback and receiver effects separately.</p>
+<p>Let’s look at a concrete example to illustrate this problem:</p>
+<section id="not-all-10-yard-completions-are-created-equal" class="level2">
+<h2 class="anchored" data-anchor-id="not-all-10-yard-completions-are-created-equal">Not All 10-Yard Completions Are Created Equal</h2>
+<p>Consider these two plays, both 10-yard completions resulting in identical passer ratings of 108.3:</p>
+<div class="cell" data-layout-align="center">
+<div class="cell-output-display">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><video src="Kupp.mp4" class="img-fluid" controls=""><a href="Kupp.mp4">Video</a></video></p>
+<figcaption>Two plays with identical outcomes but vastly different difficulty levels</figcaption>
+</figure>
+</div>
+</div>
+<div class="cell-output-display">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><video src="Zaccheaus.mp4" class="img-fluid" controls=""><a href="Zaccheaus.mp4">Video</a></video></p>
+<figcaption>Two plays with identical outcomes but vastly different difficulty levels</figcaption>
+</figure>
+</div>
+</div>
+</div>
+<p><strong>Play 1:</strong> Matthew Stafford makes a routine 10-yard throw from a clean pocket to Cooper Kupp.</p>
+<p><strong>Play 2:</strong> Marcus Mariota makes a 10-yard throw while off-balance and under pressure to Olamide Zaccheaus.</p>
+<p>Traditional passer rating treats these plays identically (both are 108.3), but the second throw objectively required more skill and was completed under more difficult circumstances. Our model aims to account for these differences. These video examples represent part of our extensive exploratory data analysis, where we examined thousands of plays to understand the contextual factors that affect pass outcomes beyond what traditional statistics capture.</p>
+</section>
+</section>
+<section id="using-tracking-data-to-solve-this-problem" class="level1">
+<h1>Using Tracking Data to Solve This Problem</h1>
+<p>To build our Expected Passer Rating model, we leveraged the rich tracking data from the NFL’s Next Gen Stats (NGS) combined with play-by-play data and PFF analysis. Our features fall into several categories:</p>
+<section id="data-sources" class="level2">
+<h2 class="anchored" data-anchor-id="data-sources">Data Sources</h2>
+<ul>
+<li>NFL NGS tracking data from the Big Data Bowl 2025</li>
+<li>PFF analysis and grading</li>
+</ul>
+</section>
+<section id="feature-categories" class="level2">
+<h2 class="anchored" data-anchor-id="feature-categories">Feature Categories</h2>
+<p>Our model incorporates a rich variety of feature categories that capture the complexity of each throw situation. Game Context features include half, seconds left, score difference, expected points, and down and distance information such as down, yards to go, and field position. We track QB Metrics through dropback characteristics like distance and type, time metrics including time to throw, time in tackle box, and time to pressure, as well as quarterback tracking data covering position, speed, direction, and orientation.</p>
+<p>Pass Details comprise pass characteristics such as length, play action, and RPO usage, along with target information including coordinates, hang time, velocity, and angle. For Player Positioning, we analyze player counts by position (D-line, linebackers, defensive backs, etc.), formation data containing offensive formation and receiver alignment, motion indicators, and player tracking coordinates for various positions.</p>
+<p>Defensive Elements feature pass pressure indicators like QB hits, pressures, and unblocked pressure, coverage schemes including man/zone coverage types, and defensive team indicators. Finally, Personnel Factors account for players in various zones (in box at snap, in box at throw), pass rusher and route runner counts, and player positioning downfield.</p>
+</section>
+</section>
+<section id="modeling-approach" class="level1">
+<h1>Modeling Approach</h1>
+<p>After evaluating several machine learning models, we decided on a structural approach that mirrors the football decision process:</p>
+<div class="cell" data-layout-align="center">
+<div class="cell-output-display">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><img src="architect.png" class="img-fluid figure-img" width="854"></p>
+<figcaption>Structural model diagram showing the pathway from pass attempt to outcome prediction</figcaption>
+</figure>
+</div>
+</div>
+</div>
+<p>Our model follows this structure:</p>
+<p>1. A multinomial classification model predicts the probability of completion, incompletion, or interception</p>
+<p>2. For completions, a regression model estimates expected yards after catch</p>
+<p>3. From these predictions, we calculate the expected components of passer rating: completion percentage, yards per attempt, touchdown percentage, and interception percentage</p>
+<p>4. These components are combined using the passer rating formula to generate Expected Passer Rating</p>
+<p>Our modeling strategy leverages the conditional structure of passing plays, creating separate models that mirror how outcomes unfold on the field. Rather than trying to predict passer rating directly, we break down the process into its fundamental components. Since yards depend on both air yards and yards after catch (YAC), and the target location and line of scrimmage determine air yards, we focus on modeling YAC conditional on a completed pass. Similarly, since touchdowns are determined by total yards (air yards + YAC) and distance to the end zone, we avoid building a separate TD model, instead using the empirical cumulative distribution function of YAC residuals.</p>
+<p>This lets us determine the probability that a given prediction’s residual will be large enough to result in a touchdown. For our model training, we used cross entropy to train the outcome model (completion/incompletion/interception) due to the high skewness in the data, while employing mean absolute error for the YAC model. Our 10-fold cross-validation process allows us to generate out-of-sample predictions for every pass, helping us evaluate quarterback performance under varying conditions.</p>
+<section id="model-selection-process" class="level2">
+<h2 class="anchored" data-anchor-id="model-selection-process">Model Selection Process</h2>
+<p>We trained multiple model types using 10-fold cross-validation: - XGBoost (tuned) - Multilayer Perceptron Neural Network - Multinomial Logistic Regression with Interactions + Lasso - Random Forest - Naive Model - Simple Multinomial Logistic Regression</p>
+<div class="cell" data-layout-align="center">
+<div class="cell-output-display">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><img src="model.png" class="img-fluid figure-img" width="903"></p>
+<figcaption>Structural model diagram showing the pathway from pass attempt to outcome prediction</figcaption>
+</figure>
+</div>
+</div>
+</div>
+<p>The XGBoost model provided the best balance of performance and interpretability, with a validation loss of approximately 0.58 after just 10 minutes of training and tuning. The multinomial logistic regression with interactions offered competitive performance with a validation loss of around 0.6, however, it took 4 hours to train.</p>
+</section>
+</section>
+<section id="case-study-a-tale-of-two-throws" class="level1">
+<h1>Case Study: A Tale of Two Throws</h1>
+<p>Let’s revisit our example of the two 10-yard completions:</p>
+<section id="staffords-clean-pocket-throw" class="level2">
+<h2 class="anchored" data-anchor-id="staffords-clean-pocket-throw">Stafford’s Clean Pocket Throw</h2>
+<div class="cell">
+<div class="cell-output-display">
+<table class="table table-striped table-hover caption-top table-sm small" data-quarto-postprocess="true">
+<caption>Stafford's Clean Pocket Throw Metrics</caption>
+<thead>
+<tr class="header">
+<th style="text-align: left;" data-quarto-table-cell-role="th">Metric</th>
+<th style="text-align: right;" data-quarto-table-cell-role="th">Expected</th>
+<th style="text-align: right;" data-quarto-table-cell-role="th">Actual</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;">YPA</td>
+<td style="text-align: right;">9.3</td>
+<td style="text-align: right;">10.0</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">CMP%</td>
+<td style="text-align: right;">75.4</td>
+<td style="text-align: right;">100.0</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">INT%</td>
+<td style="text-align: right;">1.7</td>
+<td style="text-align: right;">0.0</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">TD%</td>
+<td style="text-align: right;">0.2</td>
+<td style="text-align: right;">0.0</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">PasserRating</td>
+<td style="text-align: right;">97.5</td>
+<td style="text-align: right;">108.3</td>
+</tr>
+</tbody>
+</table>
+
+
+</div>
+</div>
+<div class="cell" data-layout-align="center">
+<div class="cell-output-display">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><img src="KuppDarkRed.gif" class="img-fluid figure-img"></p>
+<figcaption>Top and Bottom 10 QBs by Expected Passer Rating</figcaption>
+</figure>
+</div>
+</div>
+</div>
+<p>For Stafford’s routine throw from a clean pocket, our model predicted: - A 75.4% chance of completion (it was completed) - Expected 9.3 yards per attempt (actual: 10) - Low interception probability of 1.7% (actual: 0%) - Low touchdown probability of 0.2% (actual: 0%) - Resulting in an Expected Passer Rating of 97.5 (actual: 108.3)</p>
+<p>This indicates the throw was slightly better than expected, but generally in line with what our model would predict for this situation.</p>
+</section>
+<section id="mariotas-pressured-throw" class="level2">
+<h2 class="anchored" data-anchor-id="mariotas-pressured-throw">Mariota’s Pressured Throw</h2>
+<div class="cell">
+<div class="cell-output-display">
+<table class="table table-striped table-hover caption-top table-sm small" data-quarto-postprocess="true">
+<caption>Mariota's Pressured Throw Metrics</caption>
+<thead>
+<tr class="header">
+<th style="text-align: left;" data-quarto-table-cell-role="th">Metric</th>
+<th style="text-align: right;" data-quarto-table-cell-role="th">Expected</th>
+<th style="text-align: right;" data-quarto-table-cell-role="th">Actual</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;">YPA</td>
+<td style="text-align: right;">4.2</td>
+<td style="text-align: right;">10.0</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">CMP%</td>
+<td style="text-align: right;">40.0</td>
+<td style="text-align: right;">100.0</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">INT%</td>
+<td style="text-align: right;">2.0</td>
+<td style="text-align: right;">0.0</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">TD%</td>
+<td style="text-align: right;">0.0</td>
+<td style="text-align: right;">0.0</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">PasserRating</td>
+<td style="text-align: right;">44.8</td>
+<td style="text-align: right;">108.3</td>
+</tr>
+</tbody>
+</table>
+
+
+</div>
+</div>
+<div class="cell" data-layout-align="center">
+<div class="cell-output-display">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><img src="ZaccheausShort2.gif" class="img-fluid figure-img"></p>
+<figcaption>Top and Bottom 10 QBs by Expected Passer Rating</figcaption>
+</figure>
+</div>
+</div>
+</div>
+<p>For Mariota’s difficult throw under pressure: - Only a 40% chance of completion (yet it was completed) - Expected just 4.2 yards per attempt (actual: 10) - Higher interception risk of 2.0% (actual: 0%) - Negligible touchdown probability (actual: 0%) - Resulting in an Expected Passer Rating of only 44.8 (actual: 108.3)</p>
+<p>This demonstrates that Mariota’s throw was significantly more impressive than Stafford’s, as he completed a pass that had less than half the expected completion probability and generated more than twice the expected value.</p>
+</section>
+</section>
+<section id="quarterback-rankings-by-expected-passer-rating" class="level1">
+<h1>Quarterback Rankings by Expected Passer Rating</h1>
+<p>Using our model, we analyzed quarterback performance for Weeks 1-9 of the 2022 NFL season (minimum 50 snaps, excluding tipped passes):</p>
+<div class="cell" data-layout-align="center">
+<div class="cell-output-display">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><img src="table.png" width="800" height="600" class="figure-img"></p>
+<figcaption>Top and Bottom 10 QBs by Expected Passer Rating</figcaption>
+</figure>
+</div>
+</div>
+</div>
+<section id="distribution-of-expected-passer-rating-by-qb" class="level2">
+<h2 class="anchored" data-anchor-id="distribution-of-expected-passer-rating-by-qb">Distribution of Expected Passer Rating by QB</h2>
+<p>The distribution of expected passer rating by quarterback reveals interesting patterns about playing style and situation:</p>
+<div class="cell" data-layout-align="center">
+<div class="cell-output-display">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><img src="qb_passer_rating_ridge_plot_sorted.png" class="img-fluid figure-img" width="1800"></p>
+<figcaption>Distribution of Expected Passer Rating by QB</figcaption>
+</figure>
+</div>
+</div>
+</div>
+<p>Looking at the distributions, we can see that:</p>
+<ol type="1">
+<li>Top quarterbacks like Tua Tagovailoa, Ryan Tannehill, and Patrick Mahomes consistently attempt higher-value throws</li>
+<li>Bottom quarterbacks like Cooper Rush and Taylor Heinicke attempt lower-value throws on average</li>
+<li>Some quarterbacks show wider distributions than others, indicating more variability in throw difficulty</li>
+</ol>
+<p>These distributions help us understand not just how quarterbacks perform, but the contexts in which they’re asked to perform. To quantify uncertainty in these distributions, we employed a bootstrapping approach with 1,000 samples per quarterback, which allowed us to generate the confidence bands visible in these ridge plots and ensure our rankings are statistically robust.</p>
+</section>
+</section>
+<section id="key-findings" class="level1">
+<h1>Key Findings</h1>
+<p>Our analysis revealed several important insights about quarterback evaluation. Context matters enormously in quarterback assessment. Traditional passer rating treats all completions, yards, touchdowns, and interceptions equally, but our model shows that the difficulty of throws varies dramatically based on game situation, pressure, coverage, and other factors.</p>
+<p>Expected Passer Rating helps separate quarterback skill from results that may be influenced by receiver performance, defensive plays, or simple luck. This provides a clearer picture of quarterback contribution versus team effects. We also discovered interesting patterns of consistency versus volatility, with some quarterbacks consistently attempting difficult throws, while others operate in offenses designed for easier completions.</p>
+<p>The EPR model provides valuable insight into coaching impact by revealing how offensive schemes put quarterbacks in more or less advantageous situations. This can help evaluate both quarterback and coaching effectiveness. Perhaps most interestingly, our analysis uncovered hidden value in certain quarterbacks who consistently outperform their expected ratings, indicating exceptional skill that traditional metrics fail to capture. These quarterbacks demonstrate abilities to complete passes in situations where most would fail.</p>
+</section>
+<section id="model-feature-importance" class="level1">
+<h1>Model Feature Importance</h1>
+<p>Our model revealed several key factors that most influence pass outcomes. When examining the Outcome Model (Completion/Incompletion/Interception), we found time to throw had the greatest impact on pass success probability. This makes intuitive sense, as quarterbacks with more time can find open receivers and throw with better mechanics. Pressure indicators followed closely in importance, with defensive players downfield, QB hit indicators, and pass coverage type also proving highly predictive of pass outcome.</p>
+<p>For the YAC Model (Yards After Catch), pass length emerged as the dominant feature, greatly influencing how many yards could be gained after reception. Throw velocity played a significant role as well, as faster throws reach receivers more quickly, giving them additional time to assess and evade defenders. Target location, the number of offensive players downfield to provide blocking, and field position rounded out the most impactful features for predicting yards after catch. These findings align with football intuition while providing empirical validation of which factors truly drive pass play outcomes.</p>
+</section>
+<section id="limitations-and-future-work" class="level1">
+<h1>Limitations and Future Work</h1>
+<p>While our Expected Passer Rating model provides valuable insights into quarterback performance, it’s important to acknowledge its limitations and outline areas for future improvement.</p>
+<section id="current-limitations" class="level2">
+<h2 class="anchored" data-anchor-id="current-limitations">Current Limitations</h2>
+<p><strong>Sample Size Constraints</strong>: Our analysis covered only the first 9 weeks of the 2022 NFL season. This limited timeframe means some quarterbacks had relatively few pass attempts, increasing the uncertainty in their EPR estimates. Quarterbacks with fewer than 50 attempts were excluded entirely, potentially missing insights on backup quarterbacks or those who saw limited action.</p>
+<p><strong>Contextual Blindspots</strong>: While our model incorporates a rich array of tracking data, certain contextual factors remain challenging to quantify. For example, the model doesn’t account for: - The quality of the opposing defense beyond what’s captured in the immediate play context - Weather conditions that might affect passing (wind, rain, snow) - Game script factors like whether a team is playing aggressively or conservatively</p>
+<p><strong>Receiver Separation Quality</strong>: Our current model uses the positions of receivers and defenders at the time of the throw, but doesn’t directly measure the quality of route running or the degree of separation achieved by receivers. This might lead to undervaluing quarterbacks who consistently throw to well-covered receivers.</p>
+<p><strong>Play Call Constraints</strong>: The model doesn’t account for play call constraints or the available options on a given play. A quarterback might make the optimal choice among poor options, which our model doesn’t fully capture.</p>
+</section>
+</section>
+<section id="conclusion" class="level1">
+<h1>Conclusion</h1>
+<p>Expected Passer Rating provides a more nuanced and contextual measurement of quarterback performance than traditional passer rating. By accounting for the difficulty of each throw situation, we can better evaluate quarterback skill separate from factors outside their control. This creates a more equitable system for comparing quarterbacks across different teams, schemes, and situations.</p>
+<p>As tracking data becomes increasingly available and sophisticated, metrics like Expected Passer Rating will continue to evolve. The future promises even more accurate and valuable insights into quarterback play, changing how we evaluate the most scrutinized position in sports. Looking forward, a promising direction for future work would be implementing a graph neural network (GNN) architecture where players are treated as nodes in a dynamic graph. This approach would more comprehensively incorporate the relationships between all 22 players on the field, capturing defensive schemes and receiver route combinations that our current model simplifies.</p>
+</section>
+<section id="references" class="level1">
+<h1>References</h1>
+<ul>
+<li>NFL Next Gen Stats tracking data</li>
+<li>Pro Football Focus (PFF) analysis</li>
+<li>NFL play-by-play data</li>
+<li>Big Data Bowl 2025 dataset</li>
+</ul>
+</section>
+<section id="appendix" class="level1">
+<h1>Appendix</h1>
+<section id="features" class="level2">
+<h2 class="anchored" data-anchor-id="features">Features</h2>
+<p>Descriptions are sometimes taken from the Big Data Bowl 2025 data descriptions when applicable. Tracking features are described separately.</p>
+<div class="cell">
+<div class="cell-output-display">
+<div id="skxisoveie" style="padding-left:0px;padding-right:0px;padding-top:10px;padding-bottom:10px;overflow-x:auto;overflow-y:auto;width:auto;height:auto;">
+<style>#skxisoveie table {
+  font-family: system-ui, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#skxisoveie thead, #skxisoveie tbody, #skxisoveie tfoot, #skxisoveie tr, #skxisoveie td, #skxisoveie th {
+  border-style: none;
+}
+
+#skxisoveie p {
+  margin: 0;
+  padding: 0;
+}
+
+#skxisoveie .gt_table {
+  display: table;
+  border-collapse: collapse;
+  line-height: normal;
+  margin-left: auto;
+  margin-right: auto;
+  color: #333333;
+  font-size: 16px;
+  font-weight: normal;
+  font-style: normal;
+  background-color: #FFFFFF;
+  width: 100%;
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #A8A8A8;
+  border-right-style: none;
+  border-right-width: 2px;
+  border-right-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #A8A8A8;
+  border-left-style: none;
+  border-left-width: 2px;
+  border-left-color: #D3D3D3;
+}
+
+#skxisoveie .gt_caption {
+  padding-top: 4px;
+  padding-bottom: 4px;
+}
+
+#skxisoveie .gt_title {
+  color: #333333;
+  font-size: 125%;
+  font-weight: initial;
+  padding-top: 4px;
+  padding-bottom: 4px;
+  padding-left: 5px;
+  padding-right: 5px;
+  border-bottom-color: #FFFFFF;
+  border-bottom-width: 0;
+}
+
+#skxisoveie .gt_subtitle {
+  color: #333333;
+  font-size: 85%;
+  font-weight: initial;
+  padding-top: 3px;
+  padding-bottom: 5px;
+  padding-left: 5px;
+  padding-right: 5px;
+  border-top-color: #FFFFFF;
+  border-top-width: 0;
+}
+
+#skxisoveie .gt_heading {
+  background-color: #FFFFFF;
+  text-align: left;
+  border-bottom-color: #FFFFFF;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+}
+
+#skxisoveie .gt_bottom_border {
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+}
+
+#skxisoveie .gt_col_headings {
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+}
+
+#skxisoveie .gt_col_heading {
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: normal;
+  text-transform: inherit;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+  vertical-align: bottom;
+  padding-top: 5px;
+  padding-bottom: 6px;
+  padding-left: 5px;
+  padding-right: 5px;
+  overflow-x: hidden;
+}
+
+#skxisoveie .gt_column_spanner_outer {
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: normal;
+  text-transform: inherit;
+  padding-top: 0;
+  padding-bottom: 0;
+  padding-left: 4px;
+  padding-right: 4px;
+}
+
+#skxisoveie .gt_column_spanner_outer:first-child {
+  padding-left: 0;
+}
+
+#skxisoveie .gt_column_spanner_outer:last-child {
+  padding-right: 0;
+}
+
+#skxisoveie .gt_column_spanner {
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  vertical-align: bottom;
+  padding-top: 5px;
+  padding-bottom: 5px;
+  overflow-x: hidden;
+  display: inline-block;
+  width: 100%;
+}
+
+#skxisoveie .gt_spanner_row {
+  border-bottom-style: hidden;
+}
+
+#skxisoveie .gt_group_heading {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: initial;
+  text-transform: inherit;
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+  vertical-align: middle;
+  text-align: left;
+}
+
+#skxisoveie .gt_empty_group_heading {
+  padding: 0.5px;
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: initial;
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  vertical-align: middle;
+}
+
+#skxisoveie .gt_from_md > :first-child {
+  margin-top: 0;
+}
+
+#skxisoveie .gt_from_md > :last-child {
+  margin-bottom: 0;
+}
+
+#skxisoveie .gt_row {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+  margin: 10px;
+  border-top-style: solid;
+  border-top-width: 1px;
+  border-top-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+  vertical-align: middle;
+  overflow-x: hidden;
+}
+
+#skxisoveie .gt_stub {
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: initial;
+  text-transform: inherit;
+  border-right-style: solid;
+  border-right-width: 2px;
+  border-right-color: #D3D3D3;
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+#skxisoveie .gt_stub_row_group {
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: initial;
+  text-transform: inherit;
+  border-right-style: solid;
+  border-right-width: 2px;
+  border-right-color: #D3D3D3;
+  padding-left: 5px;
+  padding-right: 5px;
+  vertical-align: top;
+}
+
+#skxisoveie .gt_row_group_first td {
+  border-top-width: 2px;
+}
+
+#skxisoveie .gt_row_group_first th {
+  border-top-width: 2px;
+}
+
+#skxisoveie .gt_summary_row {
+  color: #333333;
+  background-color: #FFFFFF;
+  text-transform: inherit;
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+#skxisoveie .gt_first_summary_row {
+  border-top-style: solid;
+  border-top-color: #D3D3D3;
+}
+
+#skxisoveie .gt_first_summary_row.thick {
+  border-top-width: 2px;
+}
+
+#skxisoveie .gt_last_summary_row {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+}
+
+#skxisoveie .gt_grand_summary_row {
+  color: #333333;
+  background-color: #FFFFFF;
+  text-transform: inherit;
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+#skxisoveie .gt_first_grand_summary_row {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+  border-top-style: double;
+  border-top-width: 6px;
+  border-top-color: #D3D3D3;
+}
+
+#skxisoveie .gt_last_grand_summary_row_top {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+  border-bottom-style: double;
+  border-bottom-width: 6px;
+  border-bottom-color: #D3D3D3;
+}
+
+#skxisoveie .gt_striped {
+  background-color: rgba(128, 128, 128, 0.05);
+}
+
+#skxisoveie .gt_table_body {
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+}
+
+#skxisoveie .gt_footnotes {
+  color: #333333;
+  background-color: #FFFFFF;
+  border-bottom-style: none;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 2px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 2px;
+  border-right-color: #D3D3D3;
+}
+
+#skxisoveie .gt_footnote {
+  margin: 0px;
+  font-size: 90%;
+  padding-top: 4px;
+  padding-bottom: 4px;
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+#skxisoveie .gt_sourcenotes {
+  color: #333333;
+  background-color: #FFFFFF;
+  border-bottom-style: none;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 2px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 2px;
+  border-right-color: #D3D3D3;
+}
+
+#skxisoveie .gt_sourcenote {
+  font-size: 90%;
+  padding-top: 4px;
+  padding-bottom: 4px;
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+#skxisoveie .gt_left {
+  text-align: left;
+}
+
+#skxisoveie .gt_center {
+  text-align: center;
+}
+
+#skxisoveie .gt_right {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+#skxisoveie .gt_font_normal {
+  font-weight: normal;
+}
+
+#skxisoveie .gt_font_bold {
+  font-weight: bold;
+}
+
+#skxisoveie .gt_font_italic {
+  font-style: italic;
+}
+
+#skxisoveie .gt_super {
+  font-size: 65%;
+}
+
+#skxisoveie .gt_footnote_marks {
+  font-size: 75%;
+  vertical-align: 0.4em;
+  position: initial;
+}
+
+#skxisoveie .gt_asterisk {
+  font-size: 100%;
+  vertical-align: 0;
+}
+
+#skxisoveie .gt_indent_1 {
+  text-indent: 5px;
+}
+
+#skxisoveie .gt_indent_2 {
+  text-indent: 10px;
+}
+
+#skxisoveie .gt_indent_3 {
+  text-indent: 15px;
+}
+
+#skxisoveie .gt_indent_4 {
+  text-indent: 20px;
+}
+
+#skxisoveie .gt_indent_5 {
+  text-indent: 25px;
+}
+
+#skxisoveie .katex-display {
+  display: inline-flex !important;
+  margin-bottom: 0.75em !important;
+}
+
+#skxisoveie div.Reactable > div.rt-table > div.rt-thead > div.rt-tr.rt-tr-group-header > div.rt-th-group:after {
+  height: 0px !important;
+}
+</style>
+
+<table class="gt_table caption-top table table-sm table-striped small" data-quarto-postprocess="true" data-quarto-disable-processing="false" data-quarto-bootstrap="false">
+<thead>
+<tr class="header gt_heading">
+<th colspan="2" class="gt_heading gt_title gt_font_normal gt_bottom_border">Big Data Bowl 2025 - Main Features</th>
+</tr>
+<tr class="odd gt_col_headings">
+<th id="Feature" class="gt_col_heading gt_columns_bottom_border gt_left" data-quarto-table-cell-role="th" style="background-color: #F8F9FA; font-weight: bold" scope="col">Feature</th>
+<th id="Definition" class="gt_col_heading gt_columns_bottom_border gt_left" data-quarto-table-cell-role="th" style="background-color: #F8F9FA; font-weight: bold" scope="col">Definition</th>
+</tr>
+</thead>
+<tbody class="gt_table_body">
+<tr class="odd">
+<td class="gt_row gt_left" headers="Feature" style="font-weight: bold">half</td>
+<td class="gt_row gt_left" headers="Definition">Game half (3 for overtime)</td>
+</tr>
+<tr class="even">
+<td class="gt_row gt_left gt_striped" headers="Feature" style="font-weight: bold">secondsLeftInHalf</td>
+<td class="gt_row gt_left gt_striped" headers="Definition">Second left on game clock in half (in overtime if half=3)</td>
+</tr>
+<tr class="odd">
+<td class="gt_row gt_left" headers="Feature" style="font-weight: bold">posTeamIsHome</td>
+<td class="gt_row gt_left" headers="Definition">Home team is on offense (binary)</td>
+</tr>
+<tr class="even">
+<td class="gt_row gt_left gt_striped" headers="Feature" style="font-weight: bold">down</td>
+<td class="gt_row gt_left gt_striped" headers="Definition">Down</td>
+</tr>
+<tr class="odd">
+<td class="gt_row gt_left" headers="Feature" style="font-weight: bold">yardsToGo</td>
+<td class="gt_row gt_left" headers="Definition">Distance needed for a first down</td>
+</tr>
+<tr class="even">
+<td class="gt_row gt_left gt_striped" headers="Feature" style="font-weight: bold">scoreDiff</td>
+<td class="gt_row gt_left gt_striped" headers="Definition">Offense score minus defense score</td>
+</tr>
+<tr class="odd">
+<td class="gt_row gt_left" headers="Feature" style="font-weight: bold">absoluteYardlineNumber</td>
+<td class="gt_row gt_left" headers="Definition">Line of scrimmage yards from back of offensive endzone</td>
+</tr>
+<tr class="even">
+<td class="gt_row gt_left gt_striped" headers="Feature" style="font-weight: bold">expectedPoints</td>
+<td class="gt_row gt_left gt_striped" headers="Definition">Expected points on this play</td>
+</tr>
+<tr class="odd">
+<td class="gt_row gt_left" headers="Feature" style="font-weight: bold">passLength</td>
+<td class="gt_row gt_left" headers="Definition">The distance beyond the LOS that the ball traveled not including yards into the endzone. If thrown behind LOS, the value is negative.</td>
+</tr>
+<tr class="even">
+<td class="gt_row gt_left gt_striped" headers="Feature" style="font-weight: bold">playAction</td>
+<td class="gt_row gt_left gt_striped" headers="Definition">Whether there was play-action on the play (binary)</td>
+</tr>
+<tr class="odd">
+<td class="gt_row gt_left" headers="Feature" style="font-weight: bold">pff_runPassOption</td>
+<td class="gt_row gt_left" headers="Definition">Whether or not the play was a run-pass option (binary)</td>
+</tr>
+<tr class="even">
+<td class="gt_row gt_left gt_striped" headers="Feature" style="font-weight: bold">dropbackDistance</td>
+<td class="gt_row gt_left gt_striped" headers="Definition">The distance the QB dropped back (yards) behind the center after the snap</td>
+</tr>
+<tr class="odd">
+<td class="gt_row gt_left" headers="Feature" style="font-weight: bold">timeToThrow</td>
+<td class="gt_row gt_left" headers="Definition">The time (secs) elapsed between snap and pass</td>
+</tr>
+<tr class="even">
+<td class="gt_row gt_left gt_striped" headers="Feature" style="font-weight: bold">timeInTackleBox</td>
+<td class="gt_row gt_left gt_striped" headers="Definition">The amount of time the QB spent inside the tackle box</td>
+</tr>
+<tr class="odd">
+<td class="gt_row gt_left" headers="Feature" style="font-weight: bold">timeToPressure</td>
+<td class="gt_row gt_left" headers="Definition">The minimum time elapsed from snap to the first instance of any defensive player reaching a pressure probability greater than or equal to 0.75</td>
+</tr>
+<tr class="even">
+<td class="gt_row gt_left gt_striped" headers="Feature" style="font-weight: bold">unblockedPressure</td>
+<td class="gt_row gt_left gt_striped" headers="Definition">Whether there was pressure from an unblocked player (binary)</td>
+</tr>
+<tr class="odd">
+<td class="gt_row gt_left" headers="Feature" style="font-weight: bold">qbHit</td>
+<td class="gt_row gt_left" headers="Definition">Whether or not a player recorded a QB hit on this play (binary)</td>
+</tr>
+<tr class="even">
+<td class="gt_row gt_left gt_striped" headers="Feature" style="font-weight: bold">qbPressures</td>
+<td class="gt_row gt_left gt_striped" headers="Definition">Number of defensive players pressuring the QB, defined as achieving a peak pressure probability greater than or equal to 0.75 over the course of a dropback</td>
+</tr>
+<tr class="odd">
+<td class="gt_row gt_left" headers="Feature" style="font-weight: bold">passRushers</td>
+<td class="gt_row gt_left" headers="Definition">Number of initial pass rushers on this play</td>
+</tr>
+<tr class="even">
+<td class="gt_row gt_left gt_striped" headers="Feature" style="font-weight: bold">inBoxAtSnap</td>
+<td class="gt_row gt_left gt_striped" headers="Definition">Number of defensive players less than 5 yards downfield and less than 4 yards wide of the ball at time of snap</td>
+</tr>
+<tr class="odd">
+<td class="gt_row gt_left" headers="Feature" style="font-weight: bold">inBoxAtThrow</td>
+<td class="gt_row gt_left" headers="Definition">Number of defensive players less than 5 yards downfield and less than 4 yards wide of the ball at time of throw</td>
+</tr>
+<tr class="even">
+<td class="gt_row gt_left gt_striped" headers="Feature" style="font-weight: bold">dlineCount</td>
+<td class="gt_row gt_left gt_striped" headers="Definition">Number of defensive players onfield on this play whose position was DE, DT, or NT</td>
+</tr>
+<tr class="odd">
+<td class="gt_row gt_left" headers="Feature" style="font-weight: bold">lbCount</td>
+<td class="gt_row gt_left" headers="Definition">Number of defensive players onfield on this play whose position was MLB, LB, ILB, or OLB</td>
+</tr>
+<tr class="even">
+<td class="gt_row gt_left gt_striped" headers="Feature" style="font-weight: bold">dbCount</td>
+<td class="gt_row gt_left gt_striped" headers="Definition">Number of defensive players onfield on this play whose position was SS, FS, CB, or DB</td>
+</tr>
+<tr class="odd">
+<td class="gt_row gt_left" headers="Feature" style="font-weight: bold">rbCount</td>
+<td class="gt_row gt_left" headers="Definition">Number of offensive players onfield on this play whose position was RB or FB</td>
+</tr>
+<tr class="even">
+<td class="gt_row gt_left gt_striped" headers="Feature" style="font-weight: bold">wrCount</td>
+<td class="gt_row gt_left gt_striped" headers="Definition">Number of offensive players onfield on this play whose position was WR</td>
+</tr>
+<tr class="odd">
+<td class="gt_row gt_left" headers="Feature" style="font-weight: bold">teCount</td>
+<td class="gt_row gt_left" headers="Definition">Number of offensive players onfield on this play whose position was TE</td>
+</tr>
+<tr class="even">
+<td class="gt_row gt_left gt_striped" headers="Feature" style="font-weight: bold">routeRunners</td>
+<td class="gt_row gt_left gt_striped" headers="Definition">Number of offensive players running a route on this play</td>
+</tr>
+<tr class="odd">
+<td class="gt_row gt_left" headers="Feature" style="font-weight: bold">motionMen</td>
+<td class="gt_row gt_left" headers="Definition">Number of offensive players in motion after they were initially set at the line on this play</td>
+</tr>
+<tr class="even">
+<td class="gt_row gt_left gt_striped" headers="Feature" style="font-weight: bold">targetX</td>
+<td class="gt_row gt_left gt_striped" headers="Definition">The x-coordinate of the targeted receiver when the pass arrived</td>
+</tr>
+<tr class="odd">
+<td class="gt_row gt_left" headers="Feature" style="font-weight: bold">targetY</td>
+<td class="gt_row gt_left" headers="Definition">The y-coordinate of the targeted receiver when the pass arrived</td>
+</tr>
+<tr class="even">
+<td class="gt_row gt_left gt_striped" headers="Feature" style="font-weight: bold">hangTime</td>
+<td class="gt_row gt_left gt_striped" headers="Definition">Time in air of football between throw and arrival at target</td>
+</tr>
+<tr class="odd">
+<td class="gt_row gt_left" headers="Feature" style="font-weight: bold">throwVelo</td>
+<td class="gt_row gt_left" headers="Definition">Maximum speed of football between throw and arrival</td>
+</tr>
+<tr class="even">
+<td class="gt_row gt_left gt_striped" headers="Feature" style="font-weight: bold">throwAngle</td>
+<td class="gt_row gt_left gt_striped" headers="Definition">Angle in degrees between qb throwing straight forward and pass trajectory</td>
+</tr>
+<tr class="odd">
+<td class="gt_row gt_left" headers="Feature" style="font-weight: bold">offPlayersDownfield</td>
+<td class="gt_row gt_left" headers="Definition">Number of offensive players downfield of target at time of throw and inside 135-degree cone oriented in direction of ball trajectory</td>
+</tr>
+<tr class="even">
+<td class="gt_row gt_left gt_striped" headers="Feature" style="font-weight: bold">defPlayersDownfield</td>
+<td class="gt_row gt_left gt_striped" headers="Definition">Number of defensive players downfield of target at time of throw and inside 135-degree cone oriented in direction of ball trajectory</td>
+</tr>
+<tr class="odd">
+<td class="gt_row gt_left" headers="Feature" style="font-weight: bold">defensiveTeam</td>
+<td class="gt_row gt_left" headers="Definition">Team abbr of team on defense (text)</td>
+</tr>
+<tr class="even">
+<td class="gt_row gt_left gt_striped" headers="Feature" style="font-weight: bold">dropbackType</td>
+<td class="gt_row gt_left gt_striped" headers="Definition">The type of drop back after the snap by the QB (text)</td>
+</tr>
+<tr class="odd">
+<td class="gt_row gt_left" headers="Feature" style="font-weight: bold">offenseFormation</td>
+<td class="gt_row gt_left" headers="Definition">Formation used by possession team (text)</td>
+</tr>
+<tr class="even">
+<td class="gt_row gt_left gt_striped" headers="Feature" style="font-weight: bold">receiverAlignment</td>
+<td class="gt_row gt_left gt_striped" headers="Definition">Enumerated as 0x0, 1x0, 1x1, 2x0, 2x1, 2x2, 3x0, 3x1, 3x2 (text)</td>
+</tr>
+<tr class="odd">
+<td class="gt_row gt_left" headers="Feature" style="font-weight: bold">pff_passCoverage</td>
+<td class="gt_row gt_left" headers="Definition">The pass coverage concept employed by the defense on the play (text)</td>
+</tr>
+<tr class="even">
+<td class="gt_row gt_left gt_striped" headers="Feature" style="font-weight: bold">pff_manZone</td>
+<td class="gt_row gt_left gt_striped" headers="Definition">Whether the defense employed man or zone coverage on the play (text)</td>
+</tr>
+</tbody>
+</table>
+
+</div>
+</div>
+</div>
+<div class="cell">
+<div class="cell-output-display">
+<div id="rdqcyinfsx" style="padding-left:0px;padding-right:0px;padding-top:10px;padding-bottom:10px;overflow-x:auto;overflow-y:auto;width:auto;height:auto;">
+<style>#rdqcyinfsx table {
+  font-family: system-ui, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#rdqcyinfsx thead, #rdqcyinfsx tbody, #rdqcyinfsx tfoot, #rdqcyinfsx tr, #rdqcyinfsx td, #rdqcyinfsx th {
+  border-style: none;
+}
+
+#rdqcyinfsx p {
+  margin: 0;
+  padding: 0;
+}
+
+#rdqcyinfsx .gt_table {
+  display: table;
+  border-collapse: collapse;
+  line-height: normal;
+  margin-left: auto;
+  margin-right: auto;
+  color: #333333;
+  font-size: 16px;
+  font-weight: normal;
+  font-style: normal;
+  background-color: #FFFFFF;
+  width: 100%;
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #A8A8A8;
+  border-right-style: none;
+  border-right-width: 2px;
+  border-right-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #A8A8A8;
+  border-left-style: none;
+  border-left-width: 2px;
+  border-left-color: #D3D3D3;
+}
+
+#rdqcyinfsx .gt_caption {
+  padding-top: 4px;
+  padding-bottom: 4px;
+}
+
+#rdqcyinfsx .gt_title {
+  color: #333333;
+  font-size: 125%;
+  font-weight: initial;
+  padding-top: 4px;
+  padding-bottom: 4px;
+  padding-left: 5px;
+  padding-right: 5px;
+  border-bottom-color: #FFFFFF;
+  border-bottom-width: 0;
+}
+
+#rdqcyinfsx .gt_subtitle {
+  color: #333333;
+  font-size: 85%;
+  font-weight: initial;
+  padding-top: 3px;
+  padding-bottom: 5px;
+  padding-left: 5px;
+  padding-right: 5px;
+  border-top-color: #FFFFFF;
+  border-top-width: 0;
+}
+
+#rdqcyinfsx .gt_heading {
+  background-color: #FFFFFF;
+  text-align: left;
+  border-bottom-color: #FFFFFF;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+}
+
+#rdqcyinfsx .gt_bottom_border {
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+}
+
+#rdqcyinfsx .gt_col_headings {
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+}
+
+#rdqcyinfsx .gt_col_heading {
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: normal;
+  text-transform: inherit;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+  vertical-align: bottom;
+  padding-top: 5px;
+  padding-bottom: 6px;
+  padding-left: 5px;
+  padding-right: 5px;
+  overflow-x: hidden;
+}
+
+#rdqcyinfsx .gt_column_spanner_outer {
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: normal;
+  text-transform: inherit;
+  padding-top: 0;
+  padding-bottom: 0;
+  padding-left: 4px;
+  padding-right: 4px;
+}
+
+#rdqcyinfsx .gt_column_spanner_outer:first-child {
+  padding-left: 0;
+}
+
+#rdqcyinfsx .gt_column_spanner_outer:last-child {
+  padding-right: 0;
+}
+
+#rdqcyinfsx .gt_column_spanner {
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  vertical-align: bottom;
+  padding-top: 5px;
+  padding-bottom: 5px;
+  overflow-x: hidden;
+  display: inline-block;
+  width: 100%;
+}
+
+#rdqcyinfsx .gt_spanner_row {
+  border-bottom-style: hidden;
+}
+
+#rdqcyinfsx .gt_group_heading {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: initial;
+  text-transform: inherit;
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+  vertical-align: middle;
+  text-align: left;
+}
+
+#rdqcyinfsx .gt_empty_group_heading {
+  padding: 0.5px;
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: initial;
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  vertical-align: middle;
+}
+
+#rdqcyinfsx .gt_from_md > :first-child {
+  margin-top: 0;
+}
+
+#rdqcyinfsx .gt_from_md > :last-child {
+  margin-bottom: 0;
+}
+
+#rdqcyinfsx .gt_row {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+  margin: 10px;
+  border-top-style: solid;
+  border-top-width: 1px;
+  border-top-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+  vertical-align: middle;
+  overflow-x: hidden;
+}
+
+#rdqcyinfsx .gt_stub {
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: initial;
+  text-transform: inherit;
+  border-right-style: solid;
+  border-right-width: 2px;
+  border-right-color: #D3D3D3;
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+#rdqcyinfsx .gt_stub_row_group {
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: initial;
+  text-transform: inherit;
+  border-right-style: solid;
+  border-right-width: 2px;
+  border-right-color: #D3D3D3;
+  padding-left: 5px;
+  padding-right: 5px;
+  vertical-align: top;
+}
+
+#rdqcyinfsx .gt_row_group_first td {
+  border-top-width: 2px;
+}
+
+#rdqcyinfsx .gt_row_group_first th {
+  border-top-width: 2px;
+}
+
+#rdqcyinfsx .gt_summary_row {
+  color: #333333;
+  background-color: #FFFFFF;
+  text-transform: inherit;
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+#rdqcyinfsx .gt_first_summary_row {
+  border-top-style: solid;
+  border-top-color: #D3D3D3;
+}
+
+#rdqcyinfsx .gt_first_summary_row.thick {
+  border-top-width: 2px;
+}
+
+#rdqcyinfsx .gt_last_summary_row {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+}
+
+#rdqcyinfsx .gt_grand_summary_row {
+  color: #333333;
+  background-color: #FFFFFF;
+  text-transform: inherit;
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+#rdqcyinfsx .gt_first_grand_summary_row {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+  border-top-style: double;
+  border-top-width: 6px;
+  border-top-color: #D3D3D3;
+}
+
+#rdqcyinfsx .gt_last_grand_summary_row_top {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+  border-bottom-style: double;
+  border-bottom-width: 6px;
+  border-bottom-color: #D3D3D3;
+}
+
+#rdqcyinfsx .gt_striped {
+  background-color: rgba(128, 128, 128, 0.05);
+}
+
+#rdqcyinfsx .gt_table_body {
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+}
+
+#rdqcyinfsx .gt_footnotes {
+  color: #333333;
+  background-color: #FFFFFF;
+  border-bottom-style: none;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 2px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 2px;
+  border-right-color: #D3D3D3;
+}
+
+#rdqcyinfsx .gt_footnote {
+  margin: 0px;
+  font-size: 90%;
+  padding-top: 4px;
+  padding-bottom: 4px;
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+#rdqcyinfsx .gt_sourcenotes {
+  color: #333333;
+  background-color: #FFFFFF;
+  border-bottom-style: none;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 2px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 2px;
+  border-right-color: #D3D3D3;
+}
+
+#rdqcyinfsx .gt_sourcenote {
+  font-size: 90%;
+  padding-top: 4px;
+  padding-bottom: 4px;
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+#rdqcyinfsx .gt_left {
+  text-align: left;
+}
+
+#rdqcyinfsx .gt_center {
+  text-align: center;
+}
+
+#rdqcyinfsx .gt_right {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+#rdqcyinfsx .gt_font_normal {
+  font-weight: normal;
+}
+
+#rdqcyinfsx .gt_font_bold {
+  font-weight: bold;
+}
+
+#rdqcyinfsx .gt_font_italic {
+  font-style: italic;
+}
+
+#rdqcyinfsx .gt_super {
+  font-size: 65%;
+}
+
+#rdqcyinfsx .gt_footnote_marks {
+  font-size: 75%;
+  vertical-align: 0.4em;
+  position: initial;
+}
+
+#rdqcyinfsx .gt_asterisk {
+  font-size: 100%;
+  vertical-align: 0;
+}
+
+#rdqcyinfsx .gt_indent_1 {
+  text-indent: 5px;
+}
+
+#rdqcyinfsx .gt_indent_2 {
+  text-indent: 10px;
+}
+
+#rdqcyinfsx .gt_indent_3 {
+  text-indent: 15px;
+}
+
+#rdqcyinfsx .gt_indent_4 {
+  text-indent: 20px;
+}
+
+#rdqcyinfsx .gt_indent_5 {
+  text-indent: 25px;
+}
+
+#rdqcyinfsx .katex-display {
+  display: inline-flex !important;
+  margin-bottom: 0.75em !important;
+}
+
+#rdqcyinfsx div.Reactable > div.rt-table > div.rt-thead > div.rt-tr.rt-tr-group-header > div.rt-th-group:after {
+  height: 0px !important;
+}
+</style>
+
+<table class="gt_table caption-top table table-sm table-striped small" data-quarto-postprocess="true" data-quarto-disable-processing="false" data-quarto-bootstrap="false">
+<thead>
+<tr class="header gt_heading">
+<th colspan="2" class="gt_heading gt_title gt_font_normal gt_bottom_border">Player Roles</th>
+</tr>
+<tr class="odd gt_col_headings">
+<th id="Role" class="gt_col_heading gt_columns_bottom_border gt_left" data-quarto-table-cell-role="th" style="background-color: #F8F9FA; font-weight: bold" scope="col">Role</th>
+<th id="Description" class="gt_col_heading gt_columns_bottom_border gt_left" data-quarto-table-cell-role="th" style="background-color: #F8F9FA; font-weight: bold" scope="col">Description</th>
+</tr>
+</thead>
+<tbody class="gt_table_body">
+<tr class="odd">
+<td class="gt_row gt_left" headers="Role" style="font-weight: bold">QB</td>
+<td class="gt_row gt_left" headers="Description">Player attempting pass</td>
+</tr>
+<tr class="even">
+<td class="gt_row gt_left gt_striped" headers="Role" style="font-weight: bold">WR</td>
+<td class="gt_row gt_left gt_striped" headers="Description">Target of pass or nearest receiver if there was no target</td>
+</tr>
+<tr class="odd">
+<td class="gt_row gt_left" headers="Role" style="font-weight: bold">CB</td>
+<td class="gt_row gt_left" headers="Description">Defender nearest to the WR at time of throw</td>
+</tr>
+<tr class="even">
+<td class="gt_row gt_left gt_striped" headers="Role" style="font-weight: bold">SF</td>
+<td class="gt_row gt_left gt_striped" headers="Description">Defender nearest to target at time of throw who is oriented within 67.5 degrees of QB location</td>
+</tr>
+<tr class="odd">
+<td class="gt_row gt_left" headers="Role" style="font-weight: bold">DL</td>
+<td class="gt_row gt_left" headers="Description">Defender nearest to the trajectory of the pass at time of throw who is less than 3 yards downfield</td>
+</tr>
+<tr class="even">
+<td class="gt_row gt_left gt_striped" headers="Role" style="font-weight: bold">BZ</td>
+<td class="gt_row gt_left gt_striped" headers="Description">Defender nearest to QB at time of throw who is oriented within 67.5 degrees of QB location</td>
+</tr>
+</tbody>
+</table>
+
+</div>
+</div>
+</div>
+<div class="cell">
+<div class="cell-output-display">
+<div id="nauzgpccvz" style="padding-left:0px;padding-right:0px;padding-top:10px;padding-bottom:10px;overflow-x:auto;overflow-y:auto;width:auto;height:auto;">
+<style>#nauzgpccvz table {
+  font-family: system-ui, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#nauzgpccvz thead, #nauzgpccvz tbody, #nauzgpccvz tfoot, #nauzgpccvz tr, #nauzgpccvz td, #nauzgpccvz th {
+  border-style: none;
+}
+
+#nauzgpccvz p {
+  margin: 0;
+  padding: 0;
+}
+
+#nauzgpccvz .gt_table {
+  display: table;
+  border-collapse: collapse;
+  line-height: normal;
+  margin-left: auto;
+  margin-right: auto;
+  color: #333333;
+  font-size: 16px;
+  font-weight: normal;
+  font-style: normal;
+  background-color: #FFFFFF;
+  width: 100%;
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #A8A8A8;
+  border-right-style: none;
+  border-right-width: 2px;
+  border-right-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #A8A8A8;
+  border-left-style: none;
+  border-left-width: 2px;
+  border-left-color: #D3D3D3;
+}
+
+#nauzgpccvz .gt_caption {
+  padding-top: 4px;
+  padding-bottom: 4px;
+}
+
+#nauzgpccvz .gt_title {
+  color: #333333;
+  font-size: 125%;
+  font-weight: initial;
+  padding-top: 4px;
+  padding-bottom: 4px;
+  padding-left: 5px;
+  padding-right: 5px;
+  border-bottom-color: #FFFFFF;
+  border-bottom-width: 0;
+}
+
+#nauzgpccvz .gt_subtitle {
+  color: #333333;
+  font-size: 85%;
+  font-weight: initial;
+  padding-top: 3px;
+  padding-bottom: 5px;
+  padding-left: 5px;
+  padding-right: 5px;
+  border-top-color: #FFFFFF;
+  border-top-width: 0;
+}
+
+#nauzgpccvz .gt_heading {
+  background-color: #FFFFFF;
+  text-align: left;
+  border-bottom-color: #FFFFFF;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+}
+
+#nauzgpccvz .gt_bottom_border {
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+}
+
+#nauzgpccvz .gt_col_headings {
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+}
+
+#nauzgpccvz .gt_col_heading {
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: normal;
+  text-transform: inherit;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+  vertical-align: bottom;
+  padding-top: 5px;
+  padding-bottom: 6px;
+  padding-left: 5px;
+  padding-right: 5px;
+  overflow-x: hidden;
+}
+
+#nauzgpccvz .gt_column_spanner_outer {
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: normal;
+  text-transform: inherit;
+  padding-top: 0;
+  padding-bottom: 0;
+  padding-left: 4px;
+  padding-right: 4px;
+}
+
+#nauzgpccvz .gt_column_spanner_outer:first-child {
+  padding-left: 0;
+}
+
+#nauzgpccvz .gt_column_spanner_outer:last-child {
+  padding-right: 0;
+}
+
+#nauzgpccvz .gt_column_spanner {
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  vertical-align: bottom;
+  padding-top: 5px;
+  padding-bottom: 5px;
+  overflow-x: hidden;
+  display: inline-block;
+  width: 100%;
+}
+
+#nauzgpccvz .gt_spanner_row {
+  border-bottom-style: hidden;
+}
+
+#nauzgpccvz .gt_group_heading {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: initial;
+  text-transform: inherit;
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+  vertical-align: middle;
+  text-align: left;
+}
+
+#nauzgpccvz .gt_empty_group_heading {
+  padding: 0.5px;
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: initial;
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  vertical-align: middle;
+}
+
+#nauzgpccvz .gt_from_md > :first-child {
+  margin-top: 0;
+}
+
+#nauzgpccvz .gt_from_md > :last-child {
+  margin-bottom: 0;
+}
+
+#nauzgpccvz .gt_row {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+  margin: 10px;
+  border-top-style: solid;
+  border-top-width: 1px;
+  border-top-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+  vertical-align: middle;
+  overflow-x: hidden;
+}
+
+#nauzgpccvz .gt_stub {
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: initial;
+  text-transform: inherit;
+  border-right-style: solid;
+  border-right-width: 2px;
+  border-right-color: #D3D3D3;
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+#nauzgpccvz .gt_stub_row_group {
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: initial;
+  text-transform: inherit;
+  border-right-style: solid;
+  border-right-width: 2px;
+  border-right-color: #D3D3D3;
+  padding-left: 5px;
+  padding-right: 5px;
+  vertical-align: top;
+}
+
+#nauzgpccvz .gt_row_group_first td {
+  border-top-width: 2px;
+}
+
+#nauzgpccvz .gt_row_group_first th {
+  border-top-width: 2px;
+}
+
+#nauzgpccvz .gt_summary_row {
+  color: #333333;
+  background-color: #FFFFFF;
+  text-transform: inherit;
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+#nauzgpccvz .gt_first_summary_row {
+  border-top-style: solid;
+  border-top-color: #D3D3D3;
+}
+
+#nauzgpccvz .gt_first_summary_row.thick {
+  border-top-width: 2px;
+}
+
+#nauzgpccvz .gt_last_summary_row {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+}
+
+#nauzgpccvz .gt_grand_summary_row {
+  color: #333333;
+  background-color: #FFFFFF;
+  text-transform: inherit;
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+#nauzgpccvz .gt_first_grand_summary_row {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+  border-top-style: double;
+  border-top-width: 6px;
+  border-top-color: #D3D3D3;
+}
+
+#nauzgpccvz .gt_last_grand_summary_row_top {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+  border-bottom-style: double;
+  border-bottom-width: 6px;
+  border-bottom-color: #D3D3D3;
+}
+
+#nauzgpccvz .gt_striped {
+  background-color: rgba(128, 128, 128, 0.05);
+}
+
+#nauzgpccvz .gt_table_body {
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+}
+
+#nauzgpccvz .gt_footnotes {
+  color: #333333;
+  background-color: #FFFFFF;
+  border-bottom-style: none;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 2px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 2px;
+  border-right-color: #D3D3D3;
+}
+
+#nauzgpccvz .gt_footnote {
+  margin: 0px;
+  font-size: 90%;
+  padding-top: 4px;
+  padding-bottom: 4px;
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+#nauzgpccvz .gt_sourcenotes {
+  color: #333333;
+  background-color: #FFFFFF;
+  border-bottom-style: none;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 2px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 2px;
+  border-right-color: #D3D3D3;
+}
+
+#nauzgpccvz .gt_sourcenote {
+  font-size: 90%;
+  padding-top: 4px;
+  padding-bottom: 4px;
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+#nauzgpccvz .gt_left {
+  text-align: left;
+}
+
+#nauzgpccvz .gt_center {
+  text-align: center;
+}
+
+#nauzgpccvz .gt_right {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+#nauzgpccvz .gt_font_normal {
+  font-weight: normal;
+}
+
+#nauzgpccvz .gt_font_bold {
+  font-weight: bold;
+}
+
+#nauzgpccvz .gt_font_italic {
+  font-style: italic;
+}
+
+#nauzgpccvz .gt_super {
+  font-size: 65%;
+}
+
+#nauzgpccvz .gt_footnote_marks {
+  font-size: 75%;
+  vertical-align: 0.4em;
+  position: initial;
+}
+
+#nauzgpccvz .gt_asterisk {
+  font-size: 100%;
+  vertical-align: 0;
+}
+
+#nauzgpccvz .gt_indent_1 {
+  text-indent: 5px;
+}
+
+#nauzgpccvz .gt_indent_2 {
+  text-indent: 10px;
+}
+
+#nauzgpccvz .gt_indent_3 {
+  text-indent: 15px;
+}
+
+#nauzgpccvz .gt_indent_4 {
+  text-indent: 20px;
+}
+
+#nauzgpccvz .gt_indent_5 {
+  text-indent: 25px;
+}
+
+#nauzgpccvz .katex-display {
+  display: inline-flex !important;
+  margin-bottom: 0.75em !important;
+}
+
+#nauzgpccvz div.Reactable > div.rt-table > div.rt-thead > div.rt-tr.rt-tr-group-header > div.rt-th-group:after {
+  height: 0px !important;
+}
+</style>
+
+<table class="gt_table caption-top table table-sm table-striped small" data-quarto-postprocess="true" data-quarto-disable-processing="false" data-quarto-bootstrap="false">
+<thead>
+<tr class="header gt_heading">
+<th colspan="2" class="gt_heading gt_title gt_font_normal gt_bottom_border">Tracking Features</th>
+</tr>
+<tr class="odd gt_col_headings">
+<th id="Feature" class="gt_col_heading gt_columns_bottom_border gt_left" data-quarto-table-cell-role="th" style="background-color: #F8F9FA; font-weight: bold" scope="col">Feature</th>
+<th id="Description" class="gt_col_heading gt_columns_bottom_border gt_left" data-quarto-table-cell-role="th" style="background-color: #F8F9FA; font-weight: bold" scope="col">Description</th>
+</tr>
+</thead>
+<tbody class="gt_table_body">
+<tr class="odd">
+<td class="gt_row gt_left" headers="Feature" style="font-weight: bold">x</td>
+<td class="gt_row gt_left" headers="Description">Player position along the long axis of the field, 0 - 120 yards.</td>
+</tr>
+<tr class="even">
+<td class="gt_row gt_left gt_striped" headers="Feature" style="font-weight: bold">y</td>
+<td class="gt_row gt_left gt_striped" headers="Description">Player position along the short axis of the field, 0 - 53.3 yards.</td>
+</tr>
+<tr class="odd">
+<td class="gt_row gt_left" headers="Feature" style="font-weight: bold">s</td>
+<td class="gt_row gt_left" headers="Description">Speed in yards/second</td>
+</tr>
+<tr class="even">
+<td class="gt_row gt_left gt_striped" headers="Feature" style="font-weight: bold">dir</td>
+<td class="gt_row gt_left gt_striped" headers="Description">Angle in degrees of player motion</td>
+</tr>
+<tr class="odd">
+<td class="gt_row gt_left" headers="Feature" style="font-weight: bold">o</td>
+<td class="gt_row gt_left" headers="Description">Player orientation in degrees</td>
+</tr>
+</tbody>
+</table>
+
+</div>
+</div>
+</div>
+</section>
+</section>
+
+</main>
+<!-- /main column -->
+<script id="quarto-html-after-body" type="application/javascript">
+window.document.addEventListener("DOMContentLoaded", function (event) {
+  const toggleBodyColorMode = (bsSheetEl) => {
+    const mode = bsSheetEl.getAttribute("data-mode");
+    const bodyEl = window.document.querySelector("body");
+    if (mode === "dark") {
+      bodyEl.classList.add("quarto-dark");
+      bodyEl.classList.remove("quarto-light");
+    } else {
+      bodyEl.classList.add("quarto-light");
+      bodyEl.classList.remove("quarto-dark");
+    }
+  }
+  const toggleBodyColorPrimary = () => {
+    const bsSheetEl = window.document.querySelector("link#quarto-bootstrap");
+    if (bsSheetEl) {
+      toggleBodyColorMode(bsSheetEl);
+    }
+  }
+  toggleBodyColorPrimary();  
+  const icon = "";
+  const anchorJS = new window.AnchorJS();
+  anchorJS.options = {
+    placement: 'right',
+    icon: icon
+  };
+  anchorJS.add('.anchored');
+  const isCodeAnnotation = (el) => {
+    for (const clz of el.classList) {
+      if (clz.startsWith('code-annotation-')) {                     
+        return true;
+      }
+    }
+    return false;
+  }
+  const onCopySuccess = function(e) {
+    // button target
+    const button = e.trigger;
+    // don't keep focus
+    button.blur();
+    // flash "checked"
+    button.classList.add('code-copy-button-checked');
+    var currentTitle = button.getAttribute("title");
+    button.setAttribute("title", "Copied!");
+    let tooltip;
+    if (window.bootstrap) {
+      button.setAttribute("data-bs-toggle", "tooltip");
+      button.setAttribute("data-bs-placement", "left");
+      button.setAttribute("data-bs-title", "Copied!");
+      tooltip = new bootstrap.Tooltip(button, 
+        { trigger: "manual", 
+          customClass: "code-copy-button-tooltip",
+          offset: [0, -8]});
+      tooltip.show();    
+    }
+    setTimeout(function() {
+      if (tooltip) {
+        tooltip.hide();
+        button.removeAttribute("data-bs-title");
+        button.removeAttribute("data-bs-toggle");
+        button.removeAttribute("data-bs-placement");
+      }
+      button.setAttribute("title", currentTitle);
+      button.classList.remove('code-copy-button-checked');
+    }, 1000);
+    // clear code selection
+    e.clearSelection();
+  }
+  const getTextToCopy = function(trigger) {
+      const codeEl = trigger.previousElementSibling.cloneNode(true);
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+  }
+  const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+    text: getTextToCopy
+  });
+  clipboard.on('success', onCopySuccess);
+  if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+    // For code content inside modals, clipBoardJS needs to be initialized with a container option
+    // TODO: Check when it could be a function (https://github.com/zenorocha/clipboard.js/issues/860)
+    const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+      text: getTextToCopy,
+      container: window.document.getElementById('quarto-embedded-source-code-modal')
+    });
+    clipboardModal.on('success', onCopySuccess);
+  }
+    var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+    var mailtoRegex = new RegExp(/^mailto:/);
+      var filterRegex = new RegExp('/' + window.location.host + '/');
+    var isInternal = (href) => {
+        return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+    }
+    // Inspect non-navigation links and adorn them if external
+ 	var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+    for (var i=0; i<links.length; i++) {
+      const link = links[i];
+      if (!isInternal(link.href)) {
+        // undo the damage that might have been done by quarto-nav.js in the case of
+        // links that we want to consider external
+        if (link.dataset.originalHref !== undefined) {
+          link.href = link.dataset.originalHref;
+        }
+      }
+    }
+  function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+    const config = {
+      allowHTML: true,
+      maxWidth: 500,
+      delay: 100,
+      arrow: false,
+      appendTo: function(el) {
+          return el.parentElement;
+      },
+      interactive: true,
+      interactiveBorder: 10,
+      theme: 'quarto',
+      placement: 'bottom-start',
+    };
+    if (contentFn) {
+      config.content = contentFn;
+    }
+    if (onTriggerFn) {
+      config.onTrigger = onTriggerFn;
+    }
+    if (onUntriggerFn) {
+      config.onUntrigger = onUntriggerFn;
+    }
+    window.tippy(el, config); 
+  }
+  const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+  for (var i=0; i<noterefs.length; i++) {
+    const ref = noterefs[i];
+    tippyHover(ref, function() {
+      // use id or data attribute instead here
+      let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+      try { href = new URL(href).hash; } catch {}
+      const id = href.replace(/^#\/?/, "");
+      const note = window.document.getElementById(id);
+      if (note) {
+        return note.innerHTML;
+      } else {
+        return "";
+      }
+    });
+  }
+  const xrefs = window.document.querySelectorAll('a.quarto-xref');
+  const processXRef = (id, note) => {
+    // Strip column container classes
+    const stripColumnClz = (el) => {
+      el.classList.remove("page-full", "page-columns");
+      if (el.children) {
+        for (const child of el.children) {
+          stripColumnClz(child);
+        }
+      }
+    }
+    stripColumnClz(note)
+    if (id === null || id.startsWith('sec-')) {
+      // Special case sections, only their first couple elements
+      const container = document.createElement("div");
+      if (note.children && note.children.length > 2) {
+        container.appendChild(note.children[0].cloneNode(true));
+        for (let i = 1; i < note.children.length; i++) {
+          const child = note.children[i];
+          if (child.tagName === "P" && child.innerText === "") {
+            continue;
+          } else {
+            container.appendChild(child.cloneNode(true));
+            break;
+          }
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(container);
+        }
+        return container.innerHTML
+      } else {
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        return note.innerHTML;
+      }
+    } else {
+      // Remove any anchor links if they are present
+      const anchorLink = note.querySelector('a.anchorjs-link');
+      if (anchorLink) {
+        anchorLink.remove();
+      }
+      if (window.Quarto?.typesetMath) {
+        window.Quarto.typesetMath(note);
+      }
+      // TODO in 1.5, we should make sure this works without a callout special case
+      if (note.classList.contains("callout")) {
+        return note.outerHTML;
+      } else {
+        return note.innerHTML;
+      }
+    }
+  }
+  for (var i=0; i<xrefs.length; i++) {
+    const xref = xrefs[i];
+    tippyHover(xref, undefined, function(instance) {
+      instance.disable();
+      let url = xref.getAttribute('href');
+      let hash = undefined; 
+      if (url.startsWith('#')) {
+        hash = url;
+      } else {
+        try { hash = new URL(url).hash; } catch {}
+      }
+      if (hash) {
+        const id = hash.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note !== null) {
+          try {
+            const html = processXRef(id, note.cloneNode(true));
+            instance.setContent(html);
+          } finally {
+            instance.enable();
+            instance.show();
+          }
+        } else {
+          // See if we can fetch this
+          fetch(url.split('#')[0])
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.getElementById(id);
+            if (note !== null) {
+              const html = processXRef(id, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      } else {
+        // See if we can fetch a full url (with no hash to target)
+        // This is a special case and we should probably do some content thinning / targeting
+        fetch(url)
+        .then(res => res.text())
+        .then(html => {
+          const parser = new DOMParser();
+          const htmlDoc = parser.parseFromString(html, "text/html");
+          const note = htmlDoc.querySelector('main.content');
+          if (note !== null) {
+            // This should only happen for chapter cross references
+            // (since there is no id in the URL)
+            // remove the first header
+            if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+              note.children[0].remove();
+            }
+            const html = processXRef(null, note);
+            instance.setContent(html);
+          } 
+        }).finally(() => {
+          instance.enable();
+          instance.show();
+        });
+      }
+    }, function(instance) {
+    });
+  }
+      let selectedAnnoteEl;
+      const selectorForAnnotation = ( cell, annotation) => {
+        let cellAttr = 'data-code-cell="' + cell + '"';
+        let lineAttr = 'data-code-annotation="' +  annotation + '"';
+        const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+        return selector;
+      }
+      const selectCodeLines = (annoteEl) => {
+        const doc = window.document;
+        const targetCell = annoteEl.getAttribute("data-target-cell");
+        const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+        const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+        const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+        const lineIds = lines.map((line) => {
+          return targetCell + "-" + line;
+        })
+        let top = null;
+        let height = null;
+        let parent = null;
+        if (lineIds.length > 0) {
+            //compute the position of the single el (top and bottom and make a div)
+            const el = window.document.getElementById(lineIds[0]);
+            top = el.offsetTop;
+            height = el.offsetHeight;
+            parent = el.parentElement.parentElement;
+          if (lineIds.length > 1) {
+            const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+            const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+            height = bottom - top;
+          }
+          if (top !== null && height !== null && parent !== null) {
+            // cook up a div (if necessary) and position it 
+            let div = window.document.getElementById("code-annotation-line-highlight");
+            if (div === null) {
+              div = window.document.createElement("div");
+              div.setAttribute("id", "code-annotation-line-highlight");
+              div.style.position = 'absolute';
+              parent.appendChild(div);
+            }
+            div.style.top = top - 2 + "px";
+            div.style.height = height + 4 + "px";
+            div.style.left = 0;
+            let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+            if (gutterDiv === null) {
+              gutterDiv = window.document.createElement("div");
+              gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+              gutterDiv.style.position = 'absolute';
+              const codeCell = window.document.getElementById(targetCell);
+              const gutter = codeCell.querySelector('.code-annotation-gutter');
+              gutter.appendChild(gutterDiv);
+            }
+            gutterDiv.style.top = top - 2 + "px";
+            gutterDiv.style.height = height + 4 + "px";
+          }
+          selectedAnnoteEl = annoteEl;
+        }
+      };
+      const unselectCodeLines = () => {
+        const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+        elementsIds.forEach((elId) => {
+          const div = window.document.getElementById(elId);
+          if (div) {
+            div.remove();
+          }
+        });
+        selectedAnnoteEl = undefined;
+      };
+        // Handle positioning of the toggle
+    window.addEventListener(
+      "resize",
+      throttle(() => {
+        elRect = undefined;
+        if (selectedAnnoteEl) {
+          selectCodeLines(selectedAnnoteEl);
+        }
+      }, 10)
+    );
+    function throttle(fn, ms) {
+    let throttle = false;
+    let timer;
+      return (...args) => {
+        if(!throttle) { // first call gets through
+            fn.apply(this, args);
+            throttle = true;
+        } else { // all the others get throttled
+            if(timer) clearTimeout(timer); // cancel #2
+            timer = setTimeout(() => {
+              fn.apply(this, args);
+              timer = throttle = false;
+            }, ms);
+        }
+      };
+    }
+      // Attach click handler to the DT
+      const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+      for (const annoteDlNode of annoteDls) {
+        annoteDlNode.addEventListener('click', (event) => {
+          const clickedEl = event.target;
+          if (clickedEl !== selectedAnnoteEl) {
+            unselectCodeLines();
+            const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+            if (activeEl) {
+              activeEl.classList.remove('code-annotation-active');
+            }
+            selectCodeLines(clickedEl);
+            clickedEl.classList.add('code-annotation-active');
+          } else {
+            // Unselect the line
+            unselectCodeLines();
+            clickedEl.classList.remove('code-annotation-active');
+          }
+        });
+      }
+  const findCites = (el) => {
+    const parentEl = el.parentElement;
+    if (parentEl) {
+      const cites = parentEl.dataset.cites;
+      if (cites) {
+        return {
+          el,
+          cites: cites.split(' ')
+        };
+      } else {
+        return findCites(el.parentElement)
+      }
+    } else {
+      return undefined;
+    }
+  };
+  var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+  for (var i=0; i<bibliorefs.length; i++) {
+    const ref = bibliorefs[i];
+    const citeInfo = findCites(ref);
+    if (citeInfo) {
+      tippyHover(citeInfo.el, function() {
+        var popup = window.document.createElement('div');
+        citeInfo.cites.forEach(function(cite) {
+          var citeDiv = window.document.createElement('div');
+          citeDiv.classList.add('hanging-indent');
+          citeDiv.classList.add('csl-entry');
+          var biblioDiv = window.document.getElementById('ref-' + cite);
+          if (biblioDiv) {
+            citeDiv.innerHTML = biblioDiv.innerHTML;
+          }
+          popup.appendChild(citeDiv);
+        });
+        return popup.innerHTML;
+      });
+    }
+  }
+});
+</script>
+</div> <!-- /content -->
+
+
+
+
+</body></html>

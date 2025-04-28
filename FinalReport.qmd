@@ -1,0 +1,425 @@
+---
+title: "Expected Passer Rating in the NFL: Contextualizing QB Performance Using Tracking Data"
+author: "By Alex Williams, Alex Wei, James Lauer, and Nicco Jacimovic"
+format: 
+  html:
+    theme: cosmo
+    toc: true
+    code-fold: true
+    fig-width: 8
+    fig-height: 6
+editor: visual
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(ggplot2)
+library(knitr)
+library(kableExtra)
+library(plotly)
+library(viridis)
+library(gt)
+
+setwd("/Users/niccolo/Desktop/Spring_CMU_2025/SportsAnalytics/project/finalreportfigs")
+```
+
+# Introduction
+
+Football analytics has come a long way since the days of simply counting yards and touchdowns. With the advent of tracking data, we now have the ability to analyze the game at a granular level never before possible. This project focuses on one of the most watched and analyzed positions in sports: the NFL quarterback.
+
+In this notebook, we explore a new metric: **Expected Passer Rating (EPR)** - a measurement that contextualizes quarterback performance by using tracking data to determine how difficult each throw actually was, rather than just looking at the outcome.
+
+# What is Passer Rating?
+
+Passer rating has been the standard quarterback efficiency metric in the NFL since it was developed in 1970 by Seymour Siwoff. This formula uses four primary statistics to quantify a quarterback's performance:
+
+Completion Percentage, Yards per Attempt, Touchdown Percentage, and Interception Percentage. All of these components are bounded between 0 and 2.375.
+
+The formula can be expressed as:
+
+$$
+\text{Passer Rating} = \frac{\left(\left(\frac{COMP}{ATT} - 0.3\right) \times 5 + \left(\frac{YARDS}{ATT} - 3\right) \times 0.25 + \left(\frac{TD}{ATT}\right) \times 20 + 2.375 - \left(\frac{INT}{ATT} \times 25\right)\right)}{6} \times 100
+$$
+
+While passer rating has been a useful metric for decades, it has inherent limitations that our Expected Passer Rating model aims to address.
+
+# Motivation: Why We Need a Better Metric
+
+Traditional passer rating has served football analysis for over 50 years, but it contains several fundamental flaws. It counts the entire outcome of a play, including what happens after the pass is thrown such as yards after catch. It's also unstable and noisy from game-to-game and season-to-season, making it difficult to rely on for consistent evaluation. Furthermore, it doesn't account for the difficulty of throws, treating all completions, touchdowns, and interceptions as equal regardless of context. A 5-yard dump-off to a running back who breaks three tackles for a touchdown counts the same as a perfectly placed 40-yard strike into tight coverage in the end zone.
+
+By using conditional expectation, we can provide a better measure of quarterback performance that accounts for the difficulty of each throw situation. Tracking data allows us to quantify quarterback and receiver effects separately.
+
+Let's look at a concrete example to illustrate this problem:
+
+## Not All 10-Yard Completions Are Created Equal
+
+Consider these two plays, both 10-yard completions resulting in identical passer ratings of 108.3:
+
+```{r, echo=FALSE, fig.cap="Two plays with identical outcomes but vastly different difficulty levels", fig.align='center'}
+knitr::include_graphics(c("Kupp.mp4","Zaccheaus.mp4"))
+```
+
+**Play 1:** Matthew Stafford makes a routine 10-yard throw from a clean pocket to Cooper Kupp.
+
+**Play 2:** Marcus Mariota makes a 10-yard throw while off-balance and under pressure to Olamide Zaccheaus.
+
+Traditional passer rating treats these plays identically (both are 108.3), but the second throw objectively required more skill and was completed under more difficult circumstances. Our model aims to account for these differences. These video examples represent part of our extensive exploratory data analysis, where we examined thousands of plays to understand the contextual factors that affect pass outcomes beyond what traditional statistics capture.
+
+
+
+# Using Tracking Data to Solve This Problem
+
+To build our Expected Passer Rating model, we leveraged the rich tracking data from the NFL's Next Gen Stats (NGS) combined with play-by-play data and PFF analysis. Our features fall into several categories:
+
+## Data Sources
+
+-   NFL NGS tracking data from the Big Data Bowl 2025
+-   PFF analysis and grading
+
+## Feature Categories
+
+Our model incorporates a rich variety of feature categories that capture the complexity of each throw situation. Game Context features include half, seconds left, score difference, expected points, and down and distance information such as down, yards to go, and field position. We track QB Metrics through dropback characteristics like distance and type, time metrics including time to throw, time in tackle box, and time to pressure, as well as quarterback tracking data covering position, speed, direction, and orientation.
+
+Pass Details comprise pass characteristics such as length, play action, and RPO usage, along with target information including coordinates, hang time, velocity, and angle. For Player Positioning, we analyze player counts by position (D-line, linebackers, defensive backs, etc.), formation data containing offensive formation and receiver alignment, motion indicators, and player tracking coordinates for various positions.
+
+Defensive Elements feature pass pressure indicators like QB hits, pressures, and unblocked pressure, coverage schemes including man/zone coverage types, and defensive team indicators. Finally, Personnel Factors account for players in various zones (in box at snap, in box at throw), pass rusher and route runner counts, and player positioning downfield.
+
+# Modeling Approach
+
+After evaluating several machine learning models, we decided on a structural approach that mirrors the football decision process:
+
+```{r, echo=FALSE, fig.cap="Structural model diagram showing the pathway from pass attempt to outcome prediction", fig.align='center'}
+knitr::include_graphics("architect.png")
+```
+
+Our model follows this structure:
+
+1\. A multinomial classification model predicts the probability of completion, incompletion, or interception
+
+2\. For completions, a regression model estimates expected yards after catch
+
+3\. From these predictions, we calculate the expected components of passer rating: completion percentage, yards per attempt, touchdown percentage, and interception percentage
+
+4\. These components are combined using the passer rating formula to generate Expected Passer Rating
+
+Our modeling strategy leverages the conditional structure of passing plays, creating separate models that mirror how outcomes unfold on the field. Rather than trying to predict passer rating directly, we break down the process into its fundamental components. Since yards depend on both air yards and yards after catch (YAC), and the target location and line of scrimmage determine air yards, we focus on modeling YAC conditional on a completed pass. Similarly, since touchdowns are determined by total yards (air yards + YAC) and distance to the end zone, we avoid building a separate TD model, instead using the empirical cumulative distribution function of YAC residuals. 
+
+This lets us determine the probability that a given prediction's residual will be large enough to result in a touchdown. For our model training, we used cross entropy to train the outcome model (completion/incompletion/interception) due to the high skewness in the data, while employing mean absolute error for the YAC model. Our 10-fold cross-validation process allows us to generate out-of-sample predictions for every pass, helping us evaluate quarterback performance under varying conditions.
+
+## Model Selection Process
+
+We trained multiple model types using 10-fold cross-validation: - XGBoost (tuned) - Multilayer Perceptron Neural Network - Multinomial Logistic Regression with Interactions + Lasso - Random Forest - Naive Model - Simple Multinomial Logistic Regression
+
+```{r, echo=FALSE, fig.cap="Structural model diagram showing the pathway from pass attempt to outcome prediction", fig.align='center'}
+knitr::include_graphics("model.png")
+```
+
+The XGBoost model provided the best balance of performance and interpretability, with a validation loss of approximately 0.58 after just 10 minutes of training and tuning. The multinomial logistic regression with interactions offered competitive performance with a validation loss of around 0.6, however, it took 4 hours to train.
+
+# Case Study: A Tale of Two Throws
+
+Let's revisit our example of the two 10-yard completions:
+
+## Stafford's Clean Pocket Throw
+
+```{r, echo=FALSE}
+stafford_data <- data.frame(
+  Metric = c("YPA", "CMP%", "INT%", "TD%", "PasserRating"),
+  Expected = c(9.3, 75.4, 1.7, 0.2, 97.5),
+  Actual = c(10, 100, 0, 0, 108.3)
+)
+
+kable(stafford_data, caption = "Stafford's Clean Pocket Throw Metrics") |>
+  kable_styling(bootstrap_options = c("striped", "hover"))
+```
+
+```{r, echo=FALSE, fig.cap="Top and Bottom 10 QBs by Expected Passer Rating", fig.align='center'}
+knitr::include_graphics("KuppDarkRed.gif")
+```
+
+For Stafford's routine throw from a clean pocket, our model predicted: - A 75.4% chance of completion (it was completed) - Expected 9.3 yards per attempt (actual: 10) - Low interception probability of 1.7% (actual: 0%) - Low touchdown probability of 0.2% (actual: 0%) - Resulting in an Expected Passer Rating of 97.5 (actual: 108.3)
+
+This indicates the throw was slightly better than expected, but generally in line with what our model would predict for this situation.
+
+## Mariota's Pressured Throw
+
+```{r, echo=FALSE}
+mariota_data <- data.frame(
+  Metric = c("YPA", "CMP%", "INT%", "TD%", "PasserRating"),
+  Expected = c(4.2, 40.0, 2.0, 0.0, 44.8),
+  Actual = c(10, 100, 0, 0, 108.3)
+)
+
+kable(mariota_data, caption = "Mariota's Pressured Throw Metrics") |>
+  kable_styling(bootstrap_options = c("striped", "hover"))
+```
+
+```{r, echo=FALSE, fig.cap="Top and Bottom 10 QBs by Expected Passer Rating", fig.align='center'}
+knitr::include_graphics("ZaccheausShort2.gif")
+```
+
+For Mariota's difficult throw under pressure: - Only a 40% chance of completion (yet it was completed) - Expected just 4.2 yards per attempt (actual: 10) - Higher interception risk of 2.0% (actual: 0%) - Negligible touchdown probability (actual: 0%) - Resulting in an Expected Passer Rating of only 44.8 (actual: 108.3)
+
+This demonstrates that Mariota's throw was significantly more impressive than Stafford's, as he completed a pass that had less than half the expected completion probability and generated more than twice the expected value.
+
+# Quarterback Rankings by Expected Passer Rating
+
+Using our model, we analyzed quarterback performance for Weeks 1-9 of the 2022 NFL season (minimum 50 snaps, excluding tipped passes):
+
+```{r, echo=FALSE, fig.cap="Top and Bottom 10 QBs by Expected Passer Rating", fig.align='center', out.width=800, out.height=600}
+knitr::include_graphics("table.png")
+```
+
+## Distribution of Expected Passer Rating by QB
+
+The distribution of expected passer rating by quarterback reveals interesting patterns about playing style and situation:
+
+```{r, echo=FALSE, fig.cap="Distribution of Expected Passer Rating by QB", fig.align='center'}
+knitr::include_graphics("qb_passer_rating_ridge_plot_sorted.png")
+```
+
+Looking at the distributions, we can see that:
+
+1.  Top quarterbacks like Tua Tagovailoa, Ryan Tannehill, and Patrick Mahomes consistently attempt higher-value throws
+2.  Bottom quarterbacks like Cooper Rush and Taylor Heinicke attempt lower-value throws on average
+3.  Some quarterbacks show wider distributions than others, indicating more variability in throw difficulty
+
+These distributions help us understand not just how quarterbacks perform, but the contexts in which they're asked to perform. To quantify uncertainty in these distributions, we employed a bootstrapping approach with 1,000 samples per quarterback, which allowed us to generate the confidence bands visible in these ridge plots and ensure our rankings are statistically robust.
+
+# Key Findings
+
+Our analysis revealed several important insights about quarterback evaluation. Context matters enormously in quarterback assessment. Traditional passer rating treats all completions, yards, touchdowns, and interceptions equally, but our model shows that the difficulty of throws varies dramatically based on game situation, pressure, coverage, and other factors.
+
+Expected Passer Rating helps separate quarterback skill from results that may be influenced by receiver performance, defensive plays, or simple luck. This provides a clearer picture of quarterback contribution versus team effects. We also discovered interesting patterns of consistency versus volatility, with some quarterbacks consistently attempting difficult throws, while others operate in offenses designed for easier completions.
+
+The EPR model provides valuable insight into coaching impact by revealing how offensive schemes put quarterbacks in more or less advantageous situations. This can help evaluate both quarterback and coaching effectiveness. Perhaps most interestingly, our analysis uncovered hidden value in certain quarterbacks who consistently outperform their expected ratings, indicating exceptional skill that traditional metrics fail to capture. These quarterbacks demonstrate abilities to complete passes in situations where most would fail.
+
+# Model Feature Importance
+
+Our model revealed several key factors that most influence pass outcomes. When examining the Outcome Model (Completion/Incompletion/Interception), we found time to throw had the greatest impact on pass success probability. This makes intuitive sense, as quarterbacks with more time can find open receivers and throw with better mechanics. Pressure indicators followed closely in importance, with defensive players downfield, QB hit indicators, and pass coverage type also proving highly predictive of pass outcome.
+
+For the YAC Model (Yards After Catch), pass length emerged as the dominant feature, greatly influencing how many yards could be gained after reception. Throw velocity played a significant role as well, as faster throws reach receivers more quickly, giving them additional time to assess and evade defenders. Target location, the number of offensive players downfield to provide blocking, and field position rounded out the most impactful features for predicting yards after catch. These findings align with football intuition while providing empirical validation of which factors truly drive pass play outcomes.
+
+# Limitations and Future Work
+
+While our Expected Passer Rating model provides valuable insights into quarterback performance, it's important to acknowledge its limitations and outline areas for future improvement.
+
+## Current Limitations
+
+**Sample Size Constraints**: Our analysis covered only the first 9 weeks of the 2022 NFL season. This limited timeframe means some quarterbacks had relatively few pass attempts, increasing the uncertainty in their EPR estimates. Quarterbacks with fewer than 50 attempts were excluded entirely, potentially missing insights on backup quarterbacks or those who saw limited action.
+
+**Contextual Blindspots**: While our model incorporates a rich array of tracking data, certain contextual factors remain challenging to quantify. For example, the model doesn't account for:
+- The quality of the opposing defense beyond what's captured in the immediate play context
+- Weather conditions that might affect passing (wind, rain, snow)
+- Game script factors like whether a team is playing aggressively or conservatively
+
+**Receiver Separation Quality**: Our current model uses the positions of receivers and defenders at the time of the throw, but doesn't directly measure the quality of route running or the degree of separation achieved by receivers. This might lead to undervaluing quarterbacks who consistently throw to well-covered receivers.
+
+**Play Call Constraints**: The model doesn't account for play call constraints or the available options on a given play. A quarterback might make the optimal choice among poor options, which our model doesn't fully capture.
+
+# Conclusion
+
+Expected Passer Rating provides a more nuanced and contextual measurement of quarterback performance than traditional passer rating. By accounting for the difficulty of each throw situation, we can better evaluate quarterback skill separate from factors outside their control. This creates a more equitable system for comparing quarterbacks across different teams, schemes, and situations.
+
+As tracking data becomes increasingly available and sophisticated, metrics like Expected Passer Rating will continue to evolve. The future promises even more accurate and valuable insights into quarterback play, changing how we evaluate the most scrutinized position in sports. Looking forward, a promising direction for future work would be implementing a graph neural network (GNN) architecture where players are treated as nodes in a dynamic graph. This approach would more comprehensively incorporate the relationships between all 22 players on the field, capturing  defensive schemes and receiver route combinations that our current model simplifies.
+
+# References
+
+-   NFL Next Gen Stats tracking data
+-   Pro Football Focus (PFF) analysis
+-   NFL play-by-play data
+-   Big Data Bowl 2025 dataset
+
+# Appendix
+
+## Features
+
+Descriptions are sometimes taken from the Big Data Bowl 2025 data descriptions when applicable. Tracking features are described separately.
+
+```{r}
+#| echo: false
+#| message: false
+#| warning: false
+
+main_features <- data.frame(
+  Feature = c("half", "secondsLeftInHalf", "posTeamIsHome", "down", 
+              "yardsToGo", "scoreDiff", "absoluteYardlineNumber", "expectedPoints",
+              "passLength", "playAction", "pff_runPassOption", "dropbackDistance",
+              "timeToThrow", "timeInTackleBox", "timeToPressure", "unblockedPressure",
+              "qbHit", "qbPressures", "passRushers", "inBoxAtSnap", "inBoxAtThrow",
+              "dlineCount", "lbCount", "dbCount", "rbCount", "wrCount", "teCount",
+              "routeRunners", "motionMen", "targetX", "targetY", "hangTime",
+              "throwVelo", "throwAngle", "offPlayersDownfield", "defPlayersDownfield",
+              "defensiveTeam", "dropbackType", "offenseFormation", "receiverAlignment",
+              "pff_passCoverage", "pff_manZone"),
+  
+  Definition = c(
+    "Game half (3 for overtime)",
+    "Second left on game clock in half (in overtime if half=3)",
+    "Home team is on offense (binary)",
+    "Down",
+    "Distance needed for a first down",
+    "Offense score minus defense score",
+    "Line of scrimmage yards from back of offensive endzone",
+    "Expected points on this play",
+    "The distance beyond the LOS that the ball traveled not including yards into the endzone. If thrown behind LOS, the value is negative.",
+    "Whether there was play-action on the play (binary)",
+    "Whether or not the play was a run-pass option (binary)",
+    "The distance the QB dropped back (yards) behind the center after the snap",
+    "The time (secs) elapsed between snap and pass",
+    "The amount of time the QB spent inside the tackle box",
+    "The minimum time elapsed from snap to the first instance of any defensive player reaching a pressure probability greater than or equal to 0.75",
+    "Whether there was pressure from an unblocked player (binary)",
+    "Whether or not a player recorded a QB hit on this play (binary)",
+    "Number of defensive players pressuring the QB, defined as achieving a peak pressure probability greater than or equal to 0.75 over the course of a dropback",
+    "Number of initial pass rushers on this play",
+    "Number of defensive players less than 5 yards downfield and less than 4 yards wide of the ball at time of snap",
+    "Number of defensive players less than 5 yards downfield and less than 4 yards wide of the ball at time of throw",
+    "Number of defensive players onfield on this play whose position was DE, DT, or NT",
+    "Number of defensive players onfield on this play whose position was MLB, LB, ILB, or OLB",
+    "Number of defensive players onfield on this play whose position was SS, FS, CB, or DB",
+    "Number of offensive players onfield on this play whose position was RB or FB",
+    "Number of offensive players onfield on this play whose position was WR",
+    "Number of offensive players onfield on this play whose position was TE",
+    "Number of offensive players running a route on this play",
+    "Number of offensive players in motion after they were initially set at the line on this play",
+    "The x-coordinate of the targeted receiver when the pass arrived",
+    "The y-coordinate of the targeted receiver when the pass arrived",
+    "Time in air of football between throw and arrival at target",
+    "Maximum speed of football between throw and arrival",
+    "Angle in degrees between qb throwing straight forward and pass trajectory",
+    "Number of offensive players downfield of target at time of throw and inside 135-degree cone oriented in direction of ball trajectory",
+    "Number of defensive players downfield of target at time of throw and inside 135-degree cone oriented in direction of ball trajectory",
+    "Team abbr of team on defense (text)",
+    "The type of drop back after the snap by the QB (text)",
+    "Formation used by possession team (text)",
+    "Enumerated as 0x0, 1x0, 1x1, 2x0, 2x1, 2x2, 3x0, 3x1, 3x2 (text)",
+    "The pass coverage concept employed by the defense on the play (text)",
+    "Whether the defense employed man or zone coverage on the play (text)"
+  )
+)
+
+main_features %>%
+  gt() %>%
+  tab_header(
+    title = "Big Data Bowl 2025 - Main Features"
+  ) %>%
+  cols_align(
+    align = "left",
+    columns = everything()
+  ) %>%
+  tab_style(
+    style = list(
+      cell_fill(color = "#f8f9fa"),
+      cell_text(weight = "bold")
+    ),
+    locations = cells_column_labels()
+  ) %>%
+  tab_style(
+    style = list(
+      cell_text(weight = "bold")
+    ),
+    locations = cells_body(
+      columns = Feature
+    )
+  ) %>%
+  tab_options(
+    table.width = pct(100),
+    row.striping.include_table_body = TRUE,
+    heading.align = "left"
+  )
+```
+
+```{r}
+#| echo: false
+#| message: false
+#| warning: false
+player_roles <- data.frame(
+  Role = c("QB", "WR", "CB", "SF", "DL", "BZ"),
+  Description = c(
+    "Player attempting pass",
+    "Target of pass or nearest receiver if there was no target",
+    "Defender nearest to the WR at time of throw",
+    "Defender nearest to target at time of throw who is oriented within 67.5 degrees of QB location",
+    "Defender nearest to the trajectory of the pass at time of throw who is less than 3 yards downfield",
+    "Defender nearest to QB at time of throw who is oriented within 67.5 degrees of QB location"
+  )
+)
+
+player_roles %>%
+  gt() %>%
+  tab_header(
+    title = "Player Roles"
+  ) %>%
+  cols_align(
+    align = "left",
+    columns = everything()
+  ) %>%
+  tab_style(
+    style = list(
+      cell_fill(color = "#f8f9fa"),
+      cell_text(weight = "bold")
+    ),
+    locations = cells_column_labels()
+  ) %>%
+  tab_style(
+    style = list(
+      cell_text(weight = "bold")
+    ),
+    locations = cells_body(
+      columns = Role
+    )
+  ) %>%
+  tab_options(
+    table.width = pct(100),
+    row.striping.include_table_body = TRUE,
+    heading.align = "left"
+  )
+```
+
+```{r}
+#| echo: false
+#| message: false
+#| warning: false
+tracking_features <- data.frame(
+  Feature = c("x", "y", "s", "dir", "o"),
+  Description = c(
+    "Player position along the long axis of the field, 0 - 120 yards.",
+    "Player position along the short axis of the field, 0 - 53.3 yards.",
+    "Speed in yards/second",
+    "Angle in degrees of player motion",
+    "Player orientation in degrees"
+  )
+)
+
+tracking_features %>%
+  gt() %>%
+  tab_header(
+    title = "Tracking Features"
+  ) %>%
+  cols_align(
+    align = "left",
+    columns = everything()
+  ) %>%
+  tab_style(
+    style = list(
+      cell_fill(color = "#f8f9fa"),
+      cell_text(weight = "bold")
+    ),
+    locations = cells_column_labels()
+  ) %>%
+  tab_style(
+    style = list(
+      cell_text(weight = "bold")
+    ),
+    locations = cells_body(
+      columns = Feature
+    )
+  ) %>%
+  tab_options(
+    table.width = pct(100),
+    row.striping.include_table_body = TRUE,
+    heading.align = "left"
+  )
+```
